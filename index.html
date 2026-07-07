@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>우리집 칭찬가게</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="stage">
+    <div class="phone" id="phone">
+      <header class="app-header" id="app-header"></header>
+      <main class="app-main" id="app-main"></main>
+      <nav class="app-tabs" id="app-tabs"></nav>
+      <div class="toast" id="toast" hidden></div>
+      <div class="celebration" id="celebration" hidden>
+        <div class="confetti-layer" id="confetti"></div>
+        <div class="celebration-inner">
+          <div class="celebration-emoji" id="celebration-emoji"></div>
+          <div class="celebration-text" id="celebration-text"></div>
+          <div class="celebration-sub" id="celebration-sub"></div>
+          <div class="celebration-hint">화면을 톡 누르면 닫혀요</div>
+        </div>
+      </div>
+      <div class="modal" id="settings-modal" hidden>
+        <div class="modal-scrim" data-action="close-settings"></div>
+        <div class="modal-panel">
+          <div class="modal-head">
+            <div class="modal-title">가족 이름 설정</div>
+            <button class="modal-close" data-action="close-settings" aria-label="닫기">✕</button>
+          </div>
+          <div class="modal-body" id="settings-body"></div>
+          <div class="modal-actions">
+            <button class="btn-secondary" data-action="reset-names">기본값으로</button>
+            <button class="btn-primary" data-action="save-names">저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>
