@@ -26,6 +26,30 @@
           <div class="celebration-hint">화면을 톡 누르면 닫혀요</div>
         </div>
       </div>
+      <div class="modal" id="pin-modal" hidden>
+        <div class="modal-scrim" data-action="close-pin"></div>
+        <div class="modal-panel -pin">
+          <div class="modal-head">
+            <div class="modal-title">부모님 비밀번호 🔒</div>
+            <button class="modal-close" data-action="close-pin" aria-label="닫기">✕</button>
+          </div>
+          <div class="pin-dots" id="pin-dots"></div>
+          <div class="pin-pad">
+            <button class="pin-key" data-action="pin-digit" data-digit="1">1</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="2">2</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="3">3</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="4">4</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="5">5</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="6">6</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="7">7</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="8">8</button>
+            <button class="pin-key" data-action="pin-digit" data-digit="9">9</button>
+            <button class="pin-key -ghost" disabled></button>
+            <button class="pin-key" data-action="pin-digit" data-digit="0">0</button>
+            <button class="pin-key -back" data-action="pin-back" aria-label="지우기">⌫</button>
+          </div>
+        </div>
+      </div>
       <div class="modal" id="settings-modal" hidden>
         <div class="modal-scrim" data-action="close-settings"></div>
         <div class="modal-panel">

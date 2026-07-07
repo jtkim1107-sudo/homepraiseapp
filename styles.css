@@ -357,15 +357,6 @@ input {
   margin-top: 6px;
   flex-wrap: wrap;
 }
-.parent-chip {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 7px;
-  flex-shrink: 0;
-}
-.parent-chip.-dad { background: var(--dad-bg); color: var(--dad); }
-.parent-chip.-mom { background: var(--mom-bg); color: var(--mom); }
 .stars-badge {
   font-size: 11px;
   font-weight: 800;
@@ -593,16 +584,6 @@ input {
 }
 .btn-approve.-first  { background: var(--first); }
 .btn-approve.-second { background: var(--second); }
-.wait-tag {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--mom);
-  background: var(--mom-bg);
-  padding: 8px 12px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 .kids-status-row {
   display: flex;
   gap: 12px;
@@ -692,19 +673,6 @@ input {
   border: none;
   white-space: nowrap;
 }
-.notice-box {
-  margin-top: 24px;
-  background: #EEF1FB;
-  border-radius: 16px;
-  padding: 16px 18px;
-  font-size: 14px;
-  color: #4A5270;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.notice-box b.-mom { color: var(--mom); }
-.notice-box b.-dad { color: var(--dad); }
-
 /* ============================================================
    PARENT — 약속
    ============================================================ */
@@ -826,7 +794,6 @@ input {
   border-radius: 14px;
   padding: 12px 14px;
 }
-.reward-row.-other { opacity: 0.62; }
 .reward-emoji {
   font-size: 24px;
   flex-shrink: 0;
@@ -873,13 +840,6 @@ input {
   font-weight: 800;
   font-size: 14px;
   padding: 4px 6px;
-}
-.reward-other-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--sub-3);
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 .emoji-grid {
   display: flex;
@@ -1136,6 +1096,42 @@ input {
   gap: 8px;
   margin-top: 18px;
 }
+.modal-panel.-pin {
+  max-width: 300px;
+  text-align: center;
+}
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: 8px 0 18px;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--navy);
+  background: transparent;
+}
+.pin-dot.-filled { background: var(--navy); }
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.pin-key {
+  height: 54px;
+  border: none;
+  border-radius: 14px;
+  background: #F1F3F5;
+  font-family: 'Jua', sans-serif;
+  font-size: 20px;
+  color: var(--ink);
+}
+.pin-key:active { background: #E2E5EA; }
+.pin-key.-ghost { background: transparent; pointer-events: none; }
+.pin-key.-back { font-size: 18px; color: var(--sub); }
+
 .btn-primary {
   flex: 1;
   background: var(--navy);

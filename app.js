@@ -10,15 +10,13 @@
 const STORAGE_KEY = 'praise-app-v1';
 
 const DEFAULT_NAMES = {
-  dad: '아빠',
-  mom: '엄마',
+  parent: '부모님',
   first: '이레',
   second: '겨레',
 };
 
 const KIDS = ['first', 'second'];
-const PARENTS = ['dad', 'mom'];
-const ALL_USERS = ['first', 'second', 'dad', 'mom'];
+const ALL_USERS = ['first', 'second', 'parent'];
 
 const KID_META = {
   first:  { age: '8살' },
@@ -129,24 +127,25 @@ function seedState() {
     tab: 'board',
     userNames: { ...DEFAULT_NAMES },
     missions: [
-      { id: 1, kid: 'first',  text: '📚 숙제 다 하기',          state: 'todo',    by: 'mom', stars: 1, repeat: true,  lastReset: today },
-      { id: 2, kid: 'first',  text: '📖 책 20분 읽기',          state: 'pending', by: 'dad', stars: 2, repeat: true,  lastReset: today },
-      { id: 3, kid: 'first',  text: '🤝 동생이랑 사이좋게 놀기', state: 'todo',    by: 'mom', stars: 1, repeat: true,  lastReset: today },
-      { id: 4, kid: 'first',  text: '🎹 피아노 10분 연습',       state: 'pending', by: 'dad', stars: 3, repeat: false, lastReset: today },
-      { id: 5, kid: 'second', text: '🧸 장난감 정리하기',        state: 'todo',    by: 'dad', stars: 1, repeat: true,  lastReset: today },
-      { id: 6, kid: 'second', text: '🪥 혼자 양치하기',          state: 'done',    by: 'mom', stars: 1, repeat: true,  lastReset: today },
+      { id: 1, kid: 'first',  text: '📚 숙제 다 하기',          state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
+      { id: 2, kid: 'first',  text: '📖 책 20분 읽기',          state: 'pending', by: 'parent', stars: 2, repeat: true,  lastReset: today },
+      { id: 3, kid: 'first',  text: '🤝 동생이랑 사이좋게 놀기', state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
+      { id: 4, kid: 'first',  text: '🎹 피아노 10분 연습',       state: 'pending', by: 'parent', stars: 3, repeat: false, lastReset: today },
+      { id: 5, kid: 'second', text: '🧸 장난감 정리하기',        state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
+      { id: 6, kid: 'second', text: '🪥 혼자 양치하기',          state: 'done',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
     ],
     rewards: [
-      { id: 1, emoji: '🍦', text: '아이스크림',        price: 10, by: 'dad' },
-      { id: 2, emoji: '📺', text: '만화 30분 더 보기', price: 15, by: 'dad' },
-      { id: 3, emoji: '🎡', text: '주말 놀이공원',     price: 50, by: 'dad' },
-      { id: 4, emoji: '🧸', text: '장난감 하나',        price: 40, by: 'dad' },
+      { id: 1, emoji: '🍦', text: '아이스크림',        price: 10, by: 'parent' },
+      { id: 2, emoji: '📺', text: '만화 30분 더 보기', price: 15, by: 'parent' },
+      { id: 3, emoji: '🎡', text: '주말 놀이공원',     price: 50, by: 'parent' },
+      { id: 4, emoji: '🧸', text: '장난감 하나',        price: 40, by: 'parent' },
     ],
     log: [
       { id: 91, kid: 'second', text: '혼자 양치하기 성공', delta: 1, atMs: seedTsToday(8, 30) },
       { id: 92, kid: 'first',  text: '어제 약속 3개 지킴',  delta: 3, atMs: seedTsDaysAgo(1, 19, 30) },
     ],
     balance: { first: 12, second: 6 },
+    pin: '0000',
     bonusKid: 'first', bonusText: '',
     nmKid: 'first', nmText: '', nmStars: 1, nmRepeat: true,
     nrEmoji: '🍩', nrText: '', nrPrice: 10,
@@ -155,7 +154,7 @@ function seedState() {
 
 /* ---------- State & persistence ---------- */
 
-const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance'];
+const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin'];
 
 const state = loadState();
 
@@ -166,6 +165,8 @@ state.confetti = [];
 state.toast = null;
 state.settingsOpen = false;
 state.settingsDraft = {};
+state.pinOpen = false;
+state.pinInput = '';
 
 function loadState() {
   try {
@@ -175,6 +176,19 @@ function loadState() {
     const merged = seedState();
     for (const k of PERSIST_KEYS) {
       if (saved[k] !== undefined) merged[k] = saved[k];
+    }
+    // 구버전 마이그레이션: 엄마/아빠 계정 → 부모님 통합
+    if (merged.me === 'dad' || merged.me === 'mom') merged.me = 'parent';
+    merged.missions = merged.missions.map(m =>
+      (m.by === 'dad' || m.by === 'mom') ? { ...m, by: 'parent' } : m);
+    merged.rewards = merged.rewards.map(r =>
+      (r.by === 'dad' || r.by === 'mom') ? { ...r, by: 'parent' } : r);
+    if (merged.userNames && merged.userNames.parent === undefined) {
+      merged.userNames = {
+        parent: '부모님',
+        first: merged.userNames.first || '이레',
+        second: merged.userNames.second || '겨레',
+      };
     }
     return applyDailyReset(merged);
   } catch (e) {
@@ -204,7 +218,7 @@ function applyDailyReset(s) {
 /* ---------- Small helpers on state ---------- */
 
 function nameOf(id)         { return state.userNames[id] || DEFAULT_NAMES[id] || id; }
-function isParent(id)       { return id === 'dad' || id === 'mom'; }
+function isParent(id)       { return id === 'parent'; }
 function meIsParent()       { return isParent(state.me); }
 function myKidId()          { return isParent(state.me) ? null : state.me; }
 function kidTheme(kidId)    { return kidId === 'first' ? 'first' : 'second'; }
@@ -366,7 +380,7 @@ function addReward() {
     emoji: state.nrEmoji,
     text: text,
     price: state.nrPrice,
-    by: 'dad',
+    by: 'parent',
   });
   state.nrText = '';
   saveState();
@@ -405,11 +419,41 @@ function buyReward(id) {
   celebrate(r.emoji, r.text + ' 획득!', '축하해요! 🎉');
 }
 
+/* ---------- PIN lock (부모님 화면 잠금) ---------- */
+
+function openPinModal() {
+  state.pinOpen = true;
+  state.pinInput = '';
+  render();
+}
+function closePinModal() {
+  state.pinOpen = false;
+  state.pinInput = '';
+  render();
+}
+function pressPinDigit(digit) {
+  if (!state.pinOpen || state.pinInput.length >= 4) return;
+  state.pinInput += digit;
+  if (state.pinInput.length === 4) {
+    if (state.pinInput === (state.pin || '0000')) {
+      state.pinOpen = false;
+      state.pinInput = '';
+      switchUser('parent');
+      return;
+    }
+    state.pinInput = '';
+    render();
+    showToast('비밀번호가 틀렸어요 🙅');
+    return;
+  }
+  renderPinModal();
+}
+
 /* ---------- Settings modal ---------- */
 
 function openSettings() {
   state.settingsOpen = true;
-  state.settingsDraft = { ...state.userNames };
+  state.settingsDraft = { ...state.userNames, pin: '' };
   render();
 }
 function closeSettings() {
@@ -418,17 +462,23 @@ function closeSettings() {
 }
 function saveSettings() {
   const draft = state.settingsDraft || {};
+  const pinRaw = (draft.pin || '').trim();
+  if (pinRaw && !/^\d{4}$/.test(pinRaw)) {
+    showToast('비밀번호는 숫자 4자리로 해주세요');
+    return;
+  }
   for (const id of ALL_USERS) {
     const raw = (draft[id] || '').trim();
     state.userNames[id] = raw || DEFAULT_NAMES[id];
   }
+  if (pinRaw) state.pin = pinRaw;
   state.settingsOpen = false;
   saveState();
   render();
-  showToast('이름을 저장했어요');
+  showToast('설정을 저장했어요');
 }
 function resetNames() {
-  state.settingsDraft = { ...DEFAULT_NAMES };
+  state.settingsDraft = { ...DEFAULT_NAMES, pin: '' };
   render();
 }
 
@@ -446,7 +496,7 @@ function renderHeader() {
     let chipCls = 'chip ';
     if (active) chipCls += '-active';
     else chipCls += isParent(id) ? '-parent' : '-kid';
-    if (id === 'dad') chipCls += ' -push-right';
+    if (id === 'parent') chipCls += ' -push-right';
     return `<button class="${chipCls}" data-action="switch-user" data-id="${id}">${escapeHtml(nameOf(id))}</button>`;
   }).join('');
 
@@ -633,7 +683,6 @@ function renderMissionCard(m, themeCls, kidCanRequest) {
   else if (pending) tokenCls += ' -pending';
   else tokenCls += ' -todo-' + (themeCls === '-first' ? 'first' : 'second');
 
-  const chip = renderParentChip(m.by);
   const starBadge = stars > 1 ? `<span class="stars-badge">⭐×${stars}</span>` : '';
 
   let actionHtml = '';
@@ -651,19 +700,13 @@ function renderMissionCard(m, themeCls, kidCanRequest) {
       <div class="${tokenCls}">${tokenGlyph}</div>
       <div class="mission-body">
         <div class="${textCls}">${escapeHtml(m.text)}</div>
-        <div class="mission-meta">${chip}${starBadge}</div>
+        ${starBadge ? `<div class="mission-meta">${starBadge}</div>` : ''}
       </div>
       <div class="mission-actions">${actionHtml}</div>
     </div>
   `;
 }
 
-function renderParentChip(byId) {
-  if (!byId) return '';
-  if (byId !== 'dad' && byId !== 'mom') return '';
-  const cls = byId === 'dad' ? '-dad' : '-mom';
-  return `<span class="parent-chip ${cls}">${escapeHtml(nameOf(byId))}</span>`;
-}
 
 /* ---------- Kid: Shop ---------- */
 
@@ -694,8 +737,8 @@ function renderKidShop() {
       <span class="shop-balance ${themeCls}">내 쿠키 ${bal}개</span>
     </div>
     <div class="shop-info">
-      <span class="shop-owner">${escapeHtml(nameOf('dad'))} 보상가게</span>
-      <span class="shop-info-sub">${escapeHtml(nameOf('dad'))}가 준비한 보상이에요</span>
+      <span class="shop-owner">${escapeHtml(nameOf('parent'))} 보상가게</span>
+      <span class="shop-info-sub">정성껏 준비한 보상이에요</span>
     </div>
     <div class="shop-list">
       ${cards || `<div class="empty-box">아직 준비된 보상이 없어요</div>`}
@@ -707,12 +750,10 @@ function renderKidShop() {
 
 function renderParentHome() {
   const pending = state.missions.filter(m => m.state === 'pending');
-  const canApprove = state.me === 'mom';
-  const isDadView = state.me === 'dad';
 
   const pendingBlock = pending.length === 0
     ? `<div class="empty-box">지금은 확인할 약속이 없어요 ✨</div>`
-    : `<div class="pending-list">${pending.map(m => renderPendingCard(m, canApprove)).join('')}</div>`;
+    : `<div class="pending-list">${pending.map(m => renderPendingCard(m)).join('')}</div>`;
 
   const badge = pending.length > 0
     ? `<span class="pending-badge">${pending.length}</span>`
@@ -726,7 +767,7 @@ function renderParentHome() {
     </div>
   `).join('');
 
-  const bonusBlock = canApprove ? `
+  const bonusBlock = `
     <div class="sub-head">칭찬 쿠키 바로 주기 💖</div>
     <div class="bonus-box">
       <div class="pill-row">
@@ -740,14 +781,7 @@ function renderParentHome() {
         <button class="btn-navy" data-action="give-bonus">🍪 주기</button>
       </div>
     </div>
-  ` : '';
-
-  const dadNotice = isDadView ? `
-    <div class="notice-box">
-      약속 확인과 쿠키 지급은 <b class="-mom">${escapeHtml(nameOf('mom'))}</b>가 맡아요.<br/>
-      ${escapeHtml(nameOf('dad'))}는 <b class="-dad">보상가게</b>를 준비해 주세요 🎁
-    </div>
-  ` : '';
+  `;
 
   return `
     <div class="section-head">
@@ -758,33 +792,23 @@ function renderParentHome() {
     <div class="sub-head">아이들 현황</div>
     <div class="kids-status-row">${kidsRow}</div>
     ${bonusBlock}
-    ${dadNotice}
   `;
 }
 
-function renderPendingCard(m, canApprove) {
+function renderPendingCard(m) {
   const cls = 'pending-card -' + m.kid;
-  const chip = renderParentChip(m.by);
   const starText = (m.stars || 1) > 1 ? `<span class="pending-stars">⭐×${m.stars}</span>` : '';
-  let actions = '';
-  if (canApprove) {
-    actions = `
-      <button class="btn-reject" data-action="reject-mission" data-id="${m.id}">아직</button>
-      <button class="btn-approve -${m.kid}" data-action="approve-mission" data-id="${m.id}">쿠키 주기 🍪</button>
-    `;
-  } else {
-    actions = `<span class="wait-tag">${escapeHtml(nameOf('mom'))} 확인 대기</span>`;
-  }
   return `
     <div class="${cls}">
       <div class="pending-body">
         <div class="pending-kid-row">
           <span class="pending-kid-name -${m.kid}">${escapeHtml(nameOf(m.kid))}</span>
-          ${chip}${starText}
+          ${starText}
         </div>
         <div class="pending-text">${escapeHtml(m.text)}</div>
       </div>
-      ${actions}
+      <button class="btn-reject" data-action="reject-mission" data-id="${m.id}">아직</button>
+      <button class="btn-approve -${m.kid}" data-action="approve-mission" data-id="${m.id}">쿠키 주기 🍪</button>
     </div>
   `;
 }
@@ -846,7 +870,6 @@ function renderParentMissionRow(m) {
   const done = m.state === 'done';
   const pending = m.state === 'pending';
   const iconMap = { done: '🌟', pending: '⏳', todo: '⬜' };
-  const chip = renderParentChip(m.by);
   const stars = (m.stars || 1) > 1
     ? `<span class="stars-badge">⭐×${m.stars}</span>`
     : '';
@@ -857,7 +880,6 @@ function renderParentMissionRow(m) {
   return `
     <div class="parent-mission-row">
       <span class="parent-mission-icon">${iconMap[m.state] || '⬜'}</span>
-      ${chip}
       <span class="${textCls}">${escapeHtml(m.text)}</span>
       ${stars}
       ${pendingTag}
@@ -869,38 +891,27 @@ function renderParentMissionRow(m) {
 /* ---------- Parent: Rewards ---------- */
 
 function renderParentRewards() {
-  const isDad = state.me === 'dad';
-
-  const rows = state.rewards.map(r => {
-    const mine = isDad;
-    const rowCls = 'reward-row' + (mine ? '' : ' -other');
-    const chip = renderParentChip(r.by);
-    const controls = mine ? `
-      <div class="reward-stepper">
-        <button class="step-btn" data-action="reward-dec" data-id="${r.id}">−</button>
-        <span class="reward-price">🍪${r.price}</span>
-        <button class="step-btn" data-action="reward-inc" data-id="${r.id}">+</button>
-        <button class="reward-remove" data-action="reward-remove" data-id="${r.id}" aria-label="삭제">✕</button>
-      </div>
-    ` : `<span class="reward-other-label">🍪${r.price} · ${escapeHtml(nameOf('dad'))} 담당</span>`;
-    return `
-      <div class="${rowCls}">
+  const rows = state.rewards.map(r => `
+      <div class="reward-row">
         <span class="reward-emoji">${r.emoji}</span>
         <div class="reward-body">
           <span class="reward-name">${escapeHtml(r.text)}</span>
-          ${chip}
         </div>
-        ${controls}
+        <div class="reward-stepper">
+          <button class="step-btn" data-action="reward-dec" data-id="${r.id}">−</button>
+          <span class="reward-price">🍪${r.price}</span>
+          <button class="step-btn" data-action="reward-inc" data-id="${r.id}">+</button>
+          <button class="reward-remove" data-action="reward-remove" data-id="${r.id}" aria-label="삭제">✕</button>
+        </div>
       </div>
-    `;
-  }).join('');
+  `).join('');
 
   const emojiPicks = REWARD_EMOJIS.map(e => {
     const active = state.nrEmoji === e;
     return `<button class="emoji-pick ${active ? '-active' : ''}" data-action="set-nr-emoji" data-emoji="${e}">${e}</button>`;
   }).join('');
 
-  const addForm = isDad ? `
+  const addForm = `
     <div class="sub-head">새 보상 추가</div>
     <div class="form-box">
       <div class="emoji-grid">${emojiPicks}</div>
@@ -914,11 +925,6 @@ function renderParentRewards() {
         </div>
       </div>
       <button class="btn-navy" style="width:100%;padding:13px;font-size:16px;border-radius:14px" data-action="add-reward">보상가게에 올리기</button>
-    </div>
-  ` : `
-    <div class="notice-box">
-      보상가게는 <b class="-dad">${escapeHtml(nameOf('dad'))}</b>가 준비해요.<br/>
-      ${escapeHtml(nameOf('mom'))}는 약속을 <b class="-mom">확인</b>하고 쿠키를 지급해요 🍪
     </div>
   `;
 
@@ -1009,8 +1015,7 @@ function renderSettings() {
   el.hidden = false;
   const draft = state.settingsDraft || {};
   const fields = [
-    { id: 'dad', label: '아빠 이름' },
-    { id: 'mom', label: '엄마 이름' },
+    { id: 'parent', label: '부모님 표시 이름' },
     { id: 'first', label: '첫째 이름' },
     { id: 'second', label: '둘째 이름' },
   ].map(f => `
@@ -1019,7 +1024,25 @@ function renderSettings() {
       <input class="field-input" data-settings-id="${f.id}" placeholder="${DEFAULT_NAMES[f.id]}" value="${escapeHtml(draft[f.id] || '')}"/>
     </div>
   `).join('');
-  document.getElementById('settings-body').innerHTML = fields;
+  const pinField = `
+    <div>
+      <div class="field-label">부모님 비밀번호 (숫자 4자리)</div>
+      <input class="field-input" data-settings-id="pin" inputmode="numeric" maxlength="4" placeholder="바꾸려면 입력 (처음엔 0000)" value="${escapeHtml(draft.pin || '')}"/>
+    </div>
+  `;
+  document.getElementById('settings-body').innerHTML = fields + pinField;
+}
+
+function renderPinModal() {
+  const el = document.getElementById('pin-modal');
+  if (!state.pinOpen) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  document.getElementById('pin-dots').innerHTML = [0, 1, 2, 3].map(i =>
+    `<span class="pin-dot ${i < state.pinInput.length ? '-filled' : ''}"></span>`
+  ).join('');
 }
 
 /* ---------- Input wiring ---------- */
@@ -1052,6 +1075,7 @@ function render() {
   renderToast();
   renderCelebration();
   renderSettings();
+  renderPinModal();
 }
 
 /* ============================================================
@@ -1064,8 +1088,24 @@ document.addEventListener('click', e => {
   const action = target.getAttribute('data-action');
 
   switch (action) {
-    case 'switch-user':
-      switchUser(target.getAttribute('data-id'));
+    case 'switch-user': {
+      const uid = target.getAttribute('data-id');
+      if (uid === 'parent' && state.me !== 'parent') {
+        openPinModal();
+      } else {
+        switchUser(uid);
+      }
+      return;
+    }
+    case 'pin-digit':
+      pressPinDigit(target.getAttribute('data-digit'));
+      return;
+    case 'pin-back':
+      state.pinInput = state.pinInput.slice(0, -1);
+      renderPinModal();
+      return;
+    case 'close-pin':
+      closePinModal();
       return;
     case 'switch-tab':
       switchTab(target.getAttribute('data-tab'));
