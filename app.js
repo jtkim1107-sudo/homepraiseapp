@@ -9,6 +9,28 @@
 
 const STORAGE_KEY = 'praise-app-v1';
 
+/* ---------- 클라우드 동기화 (Firebase Realtime Database) ----------
+   가족 모두가 같은 FAMILY_KEY "방"의 데이터를 실시간으로 공유한다.
+   인터넷이 없거나 Firebase 로드 실패 시 로컬 전용 모드로 동작. */
+const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
+const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin'];
+
+const DEVICE_ID = (function () {
+  const KEY = 'praise-app-device-id';
+  let id = null;
+  try {
+    id = localStorage.getItem(KEY);
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(KEY, id);
+    }
+  } catch (e) {
+    id = 'dev_temp';
+  }
+  return id;
+})();
+
 const DEFAULT_NAMES = {
   parent: '부모님',
   first: '이레',
@@ -196,12 +218,64 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveLocal() {
   const snapshot = {};
   for (const k of PERSIST_KEYS) snapshot[k] = state[k];
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch (e) { /* quota, ignore */ }
+}
+
+function saveState() {
+  saveLocal();
+  cloudSave();
+}
+
+/* ---------- 클라우드 읽기/쓰기 ---------- */
+
+let cloudRef = null;
+
+function initCloud() {
+  if (typeof firebase === 'undefined' || !CLOUD_DATABASE_URL) return; // 로컬 전용 모드
+  try {
+    firebase.initializeApp({ databaseURL: CLOUD_DATABASE_URL });
+    cloudRef = firebase.database().ref('families/' + FAMILY_KEY + '/state');
+    cloudRef.on('value', snap => {
+      const remote = snap.val();
+      if (!remote || !remote.data) {
+        // 클라우드가 비어있음 → 이 기기의 데이터를 첫 데이터로 올림
+        cloudSave();
+        return;
+      }
+      if (remote.by === DEVICE_ID) return; // 내가 방금 쓴 데이터의 메아리
+      let shared;
+      try { shared = JSON.parse(remote.data); } catch (e) { return; }
+      let changed = false;
+      for (const k of SHARED_KEYS) {
+        if (shared[k] !== undefined && JSON.stringify(shared[k]) !== JSON.stringify(state[k])) {
+          state[k] = shared[k];
+          changed = true;
+        }
+      }
+      if (changed) {
+        applyDailyReset(state);
+        saveLocal();
+        render();
+      }
+    });
+  } catch (e) { /* 연결 실패 → 로컬 전용 모드로 계속 */ }
+}
+
+function cloudSave() {
+  if (!cloudRef) return;
+  const shared = {};
+  for (const k of SHARED_KEYS) shared[k] = state[k];
+  // 배열/객체를 JSON 문자열로 통째로 저장 (RTDB의 빈 배열 삭제 특성 회피)
+  cloudRef.set({
+    by: DEVICE_ID,
+    updatedAt: Date.now(),
+    data: JSON.stringify(shared),
+  }).catch(() => {});
 }
 
 function applyDailyReset(s) {
@@ -1202,3 +1276,4 @@ document.getElementById('settings-body').addEventListener('input', e => {
    ============================================================ */
 
 render();
+initCloud();

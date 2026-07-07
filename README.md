@@ -27,10 +27,12 @@
 powershell -ExecutionPolicy Bypass -File serve.ps1   # http://localhost:5173
 ```
 
-- 데이터는 브라우저 LocalStorage에 저장됩니다 (기기별 독립).
+- 데이터는 Firebase Realtime Database로 **가족 기기 간 실시간 동기화**됩니다.
+- 오프라인이면 LocalStorage로 동작하고, 연결되면 다시 동기화됩니다.
+- 부모님 화면은 비밀번호(숫자 4자리, 기본 0000)로 잠겨 있습니다.
 - 매일 약속은 자정(KST) 기준으로 다시 생깁니다.
 - 반응형: 폰(<600px) / 태블릿(≥600px) 레이아웃.
 
 ## 기술
 
-HTML + CSS + Vanilla JS (프레임워크 없음). 폰트: Jua, Pretendard.
+HTML + CSS + Vanilla JS (프레임워크 없음) + Firebase Realtime Database. 폰트: Jua, Pretendard.
