@@ -14,7 +14,7 @@ const STORAGE_KEY = 'praise-app-v1';
    인터넷이 없거나 Firebase 로드 실패 시 로컬 전용 모드로 동작. */
 const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
-const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin'];
+const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts'];
 
 const DEVICE_ID = (function () {
   const KEY = 'praise-app-device-id';
@@ -67,16 +67,18 @@ const REWARD_EMOJIS = ['🍦','🍩','🍕','🍔','🍫','🍬','🍭','🍪','
 const CONFETTI_CHARS = ['🎉','✨','⭐','💫','🌈','🎊','💛','💜','🧡','💖'];
 
 const PARENT_TABS = [
-  { key: 'board',   label: '홈',       icon: '🏠' },
-  { key: 'mission', label: '약속',     icon: '📝' },
-  { key: 'rewards', label: '보상 관리', icon: '🎁' },
-  { key: 'log',     label: '기록',     icon: '📋' },
+  { key: 'board',   label: '홈',     icon: '🏠' },
+  { key: 'mission', label: '약속',   icon: '📝' },
+  { key: 'rewards', label: '보상',   icon: '🎁' },
+  { key: 'talk',    label: '쪽지판', icon: '💌' },
+  { key: 'log',     label: '기록',   icon: '📋' },
 ];
 
 const KID_TABS = [
   { key: 'board',   label: '내 쿠키',   icon: '🍪' },
   { key: 'mission', label: '오늘의 약속', icon: '💪' },
   { key: 'shop',    label: '보상가게',    icon: '🎁' },
+  { key: 'talk',    label: '쪽지판',      icon: '💌' },
 ];
 
 /* ---------- Utilities ---------- */
@@ -166,9 +168,12 @@ function seedState() {
       { id: 91, kid: 'second', text: '혼자 양치하기 성공', delta: 1, atMs: seedTsToday(8, 30) },
       { id: 92, kid: 'first',  text: '어제 약속 3개 지킴',  delta: 3, atMs: seedTsDaysAgo(1, 19, 30) },
     ],
+    posts: [
+      { id: 81, by: 'parent', text: '우리 가족 쪽지판이 생겼어요! 하고 싶은 말, 고마운 마음을 자유롭게 남겨보세요 💛', atMs: seedTsToday(9, 0), hearts: [] },
+    ],
     balance: { first: 12, second: 6 },
     pin: '0000',
-    bonusKid: 'first', bonusText: '',
+    bonusKid: 'first', bonusText: '', talkText: '',
     nmKid: 'first', nmText: '', nmStars: 1, nmRepeat: true,
     nrEmoji: '🍩', nrText: '', nrPrice: 10,
   };
@@ -176,7 +181,7 @@ function seedState() {
 
 /* ---------- State & persistence ---------- */
 
-const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin'];
+const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts'];
 
 const state = loadState();
 
@@ -493,6 +498,40 @@ function buyReward(id) {
   celebrate(r.emoji, r.text + ' 획득!', '축하해요! 🎉');
 }
 
+/* ---------- 쪽지판 ---------- */
+
+function addPost() {
+  const text = (state.talkText || '').trim();
+  if (!text) return;
+  if (!Array.isArray(state.posts)) state.posts = [];
+  state.posts.unshift({ id: newId(), by: state.me, text: text, atMs: Date.now(), hearts: [] });
+  state.talkText = '';
+  saveState();
+  render();
+  showToast('쪽지를 붙였어요 💌');
+}
+
+function deletePost(id) {
+  const p = (state.posts || []).find(x => x.id === id);
+  if (!p) return;
+  if (!meIsParent() && p.by !== state.me) return;
+  state.posts = state.posts.filter(x => x.id !== id);
+  saveState();
+  render();
+  showToast('쪽지를 뗐어요');
+}
+
+function togglePostHeart(id) {
+  const p = (state.posts || []).find(x => x.id === id);
+  if (!p) return;
+  if (!Array.isArray(p.hearts)) p.hearts = [];
+  const i = p.hearts.indexOf(state.me);
+  if (i >= 0) p.hearts.splice(i, 1);
+  else p.hearts.push(state.me);
+  saveState();
+  render();
+}
+
 /* ---------- PIN lock (부모님 화면 잠금) ---------- */
 
 function openPinModal() {
@@ -612,10 +651,12 @@ function renderMain() {
     if (state.tab === 'board')   html = renderKidBoard();
     if (state.tab === 'mission') html = renderKidMission();
     if (state.tab === 'shop')    html = renderKidShop();
+    if (state.tab === 'talk')    html = renderTalk();
   } else {
     if (state.tab === 'board')   html = renderParentHome();
     if (state.tab === 'mission') html = renderParentMission();
     if (state.tab === 'rewards') html = renderParentRewards();
+    if (state.tab === 'talk')    html = renderTalk();
     if (state.tab === 'log')     html = renderParentLog();
   }
   main.innerHTML = html;
@@ -1009,6 +1050,73 @@ function renderParentRewards() {
   `;
 }
 
+/* ---------- 쪽지판 (부모 + 아이 공용) ---------- */
+
+function renderTalk() {
+  const me = state.me;
+  const themeCls = meIsParent() ? '-parent' : (me === 'first' ? '-first' : '-second');
+
+  const composer = `
+    <div class="note-composer">
+      <input class="text-input" id="input-talk-text" placeholder="가족에게 쪽지를 남겨보세요" value="${escapeHtml(state.talkText || '')}" data-input="talk-text"/>
+      <button class="btn-send ${themeCls}" data-action="add-post">💌 붙이기</button>
+    </div>
+  `;
+
+  const posts = (state.posts || []).slice().sort((a, b) => (b.atMs || 0) - (a.atMs || 0));
+  const groups = new Map();
+  for (const p of posts) {
+    const key = p.atMs ? dayKeyFromMs(p.atMs) : 'older';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+
+  const sections = Array.from(groups.entries()).map(([key, entries]) => {
+    const label = key === 'older' ? '그전' : dayLabelFromKey(key);
+    const cards = entries.map(p => renderNoteCard(p)).join('');
+    return `
+      <div class="log-group">
+        <div class="log-group-head">${escapeHtml(label)}</div>
+        <div class="note-list">${cards}</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <h2 class="screen-title">우리집 쪽지판 💌</h2>
+    ${composer}
+    ${sections || `<div class="empty-box">아직 쪽지가 없어요. 첫 쪽지를 남겨보세요 ✨</div>`}
+  `;
+}
+
+function renderNoteCard(p) {
+  const authorCls = isParent(p.by) ? '-parent' : ('-' + p.by);
+  const hearts = Array.isArray(p.hearts) ? p.hearts : [];
+  const mine = hearts.indexOf(state.me) >= 0;
+  const heartLabel = hearts.length > 0 ? '💛 ' + hearts.length : '🤍';
+  const heartNames = hearts.length > 0
+    ? `<span class="note-heart-names">${escapeHtml(hearts.map(nameOf).join(', '))}</span>`
+    : '';
+  const canDelete = meIsParent() || p.by === state.me;
+  const delBtn = canDelete
+    ? `<button class="note-delete" data-action="delete-post" data-id="${p.id}" aria-label="삭제">✕</button>`
+    : '';
+  return `
+    <div class="note-card ${authorCls}">
+      <div class="note-top">
+        <span class="note-author ${authorCls}">${escapeHtml(nameOf(p.by))}</span>
+        <span class="note-time">${p.atMs ? timeOfDayLabel(p.atMs) : ''}</span>
+        ${delBtn}
+      </div>
+      <div class="note-text">${escapeHtml(p.text)}</div>
+      <div class="note-foot">
+        <button class="note-heart ${mine ? '-on' : ''}" data-action="toggle-heart" data-id="${p.id}">${heartLabel}</button>
+        ${heartNames}
+      </div>
+    </div>
+  `;
+}
+
 /* ---------- Parent: Log ---------- */
 
 function renderParentLog() {
@@ -1128,6 +1236,7 @@ function wireInputs() {
       if (key === 'bonus-text') state.bonusText = e.target.value;
       if (key === 'nm-text')    state.nmText    = e.target.value;
       if (key === 'nr-text')    state.nrText    = e.target.value;
+      if (key === 'talk-text')  state.talkText  = e.target.value;
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
@@ -1135,6 +1244,7 @@ function wireInputs() {
         if (key === 'bonus-text') giveBonus();
         if (key === 'nm-text')    addMission();
         if (key === 'nr-text')    addReward();
+        if (key === 'talk-text')  addPost();
       }
     });
   });
@@ -1258,6 +1368,17 @@ document.addEventListener('click', e => {
       return;
     case 'buy':
       buyReward(Number(target.getAttribute('data-id')));
+      return;
+    case 'add-post':
+      addPost();
+      return;
+    case 'delete-post':
+      if (confirm('이 쪽지를 뗄까요?')) {
+        deletePost(Number(target.getAttribute('data-id')));
+      }
+      return;
+    case 'toggle-heart':
+      togglePostHeart(Number(target.getAttribute('data-id')));
       return;
   }
 });

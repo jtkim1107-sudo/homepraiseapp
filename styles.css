@@ -951,6 +951,116 @@ input {
 .log-delta.-minus { color: var(--second-deep); }
 
 /* ============================================================
+   쪽지판 (부모 + 아이 공용)
+   ============================================================ */
+.note-composer {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: #fff;
+  border: 1.5px solid var(--line-2);
+  border-radius: 16px;
+  padding: 10px;
+}
+.btn-send {
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: none;
+  white-space: nowrap;
+}
+.btn-send.-parent { background: var(--navy); }
+.btn-send.-first  { background: var(--first); }
+.btn-send.-second { background: var(--second); }
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.note-card {
+  border-radius: 18px;
+  padding: 13px 15px 11px;
+  box-shadow: 0 4px 14px rgba(60,40,120,0.07);
+  border: 1px solid var(--card-border);
+}
+.note-card.-parent { background: #F2F3FA; }
+.note-card.-first  { background: var(--first-bg); }
+.note-card.-second { background: var(--second-bg); }
+.note-list .note-card:nth-child(odd)  { transform: rotate(-0.4deg); }
+.note-list .note-card:nth-child(even) { transform: rotate(0.4deg); }
+.note-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.note-author {
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 12px;
+  padding: 3px 11px;
+  border-radius: 999px;
+}
+.note-author.-parent { background: var(--navy); }
+.note-author.-first  { background: var(--first); }
+.note-author.-second { background: var(--second); }
+.note-time {
+  font-size: 11px;
+  color: var(--sub-3);
+  font-weight: 600;
+  margin-right: auto;
+}
+.note-delete {
+  background: none;
+  border: none;
+  color: #C3C8D3;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 3px 7px;
+  border-radius: 8px;
+}
+.note-delete:hover {
+  color: var(--danger);
+  background: rgba(255,255,255,0.7);
+}
+.note-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.45;
+  word-break: keep-all;
+  margin: 9px 2px 10px;
+  white-space: pre-wrap;
+}
+.note-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.note-heart {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--sub);
+  padding: 5px 12px;
+  transition: transform 0.15s ease;
+}
+.note-heart:active { transform: scale(1.15); }
+.note-heart.-on {
+  background: var(--star-bg);
+  border-color: var(--star);
+  color: var(--star-ink);
+}
+.note-heart-names {
+  font-size: 11px;
+  color: var(--sub-3);
+  font-weight: 600;
+}
+
+/* ============================================================
    Toast
    ============================================================ */
 .toast {
@@ -1261,6 +1371,17 @@ input {
 
   /* Screen titles */
   .screen-title { font-size: 28px; margin-bottom: 20px; }
+
+  /* 쪽지판 — 2-column notes */
+  .note-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+  .note-text { font-size: 17px; }
+  .note-composer { padding: 12px; }
+  .btn-send { font-size: 16px; padding: 10px 18px; }
 
   /* ============================================================
      PARENT screens (부모) — keep phone-sized, cap at 480px
