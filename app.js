@@ -103,10 +103,10 @@ const PARENT_TABS = [
 ];
 
 const KID_TABS = [
-  { key: 'board',   label: '내 쿠키',    icon: '🍪' },
-  { key: 'mission', label: '오늘의 약속', icon: '💪' },
-  { key: 'shop',    label: '쿠키마켓',  icon: '🎁' },
-  { key: 'talk',    label: '게시판',      icon: '📌' },
+  { key: 'board',   label: '내 쿠키',  icon: '🍪' },
+  { key: 'mission', label: '약속',     icon: '💪' },
+  { key: 'shop',    label: '쿠키마켓', icon: '🎁' },
+  { key: 'talk',    label: '게시판',   icon: '📌' },
 ];
 
 /* ---------- Utilities ---------- */
@@ -1012,7 +1012,10 @@ function renderTabs() {
   const isP = meIsParent();
   const tabs = isP ? PARENT_TABS : KID_TABS;
   const accent = isP ? 'var(--navy)' : (state.me === 'first' ? 'var(--first)' : 'var(--second)');
+  const accentBg = state.me === 'first' ? 'var(--first-bg)' : 'var(--second-bg)';
+  nav.className = 'app-tabs' + (isP ? '' : ' -kid');
   nav.style.setProperty('--tab-accent', accent);
+  nav.style.setProperty('--tab-accent-bg', accentBg);
   nav.innerHTML = tabs.map(t => `
     <button class="tab ${state.tab === t.key ? '-active' : ''}" data-action="switch-tab" data-tab="${t.key}">
       <span class="tab-icon">${t.icon}</span>

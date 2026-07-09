@@ -167,6 +167,8 @@ input {
   background: #fff;
   border-top: 1px solid var(--line);
   flex-shrink: 0;
+  /* 아이폰 홈바(제스처 바)와 겹치지 않게 */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .tab {
   flex: 1;
@@ -181,6 +183,7 @@ input {
 .tab-icon {
   font-size: 22px;
   opacity: 0.55;
+  transition: transform 0.15s ease;
 }
 .tab.-active .tab-icon { opacity: 1; }
 .tab-label {
@@ -189,6 +192,33 @@ input {
   color: var(--sub-3);
 }
 .tab.-active .tab-label { color: var(--tab-accent, var(--navy)); }
+
+/* 아이 화면 탭 — 더 크고 잘 보이게, 활성 탭은 알약 배경 */
+.app-tabs.-kid {
+  gap: 5px;
+  padding: 7px 7px calc(7px + env(safe-area-inset-bottom, 0px));
+}
+.app-tabs.-kid .tab {
+  border-radius: 16px;
+  padding: 8px 0 9px;
+  gap: 2px;
+}
+.app-tabs.-kid .tab-icon {
+  font-size: 25px;
+  opacity: 0.6;
+}
+.app-tabs.-kid .tab-label {
+  font-family: 'Jua', sans-serif;
+  font-weight: normal;
+  font-size: 12px;
+}
+.app-tabs.-kid .tab.-active {
+  background: var(--tab-accent-bg, var(--first-bg));
+}
+.app-tabs.-kid .tab.-active .tab-icon {
+  opacity: 1;
+  transform: scale(1.18);
+}
 
 /* ============================================================
    가족방 온보딩
