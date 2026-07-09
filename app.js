@@ -289,10 +289,14 @@ function saveState() {
   cloudSave();
 }
 
-/* ---------- 클라우드 읽기/쓰기 ---------- */
+/* ---------- 클라우드 읽기/쓰기 ----------
+   충돌 방지를 위해 영역(SHARED_KEYS)별로 나눠 저장한다.
+   기기 A가 기록을 쓰는 동시에 기기 B가 게시판을 써도
+   서로 다른 영역이면 둘 다 살아남는다. 변경된 영역만 전송. */
 
-let cloudRef = null;
+let cloudRef = null;       // families/<KEY>/fields
 let cloudInited = false;
+let lastSyncedJson = {};   // 영역별 마지막 동기화 JSON (변경 감지 + 메아리 방지)
 
 function ensureFirebaseApp() {
   if (typeof firebase === 'undefined' || !CLOUD_DATABASE_URL) return false;
@@ -303,49 +307,99 @@ function ensureFirebaseApp() {
   return true;
 }
 
+// 원격 필드들을 state에 반영. 화면 갱신이 필요하면 true.
+function applyRemoteFields(remote) {
+  let changed = false;
+  for (const k of SHARED_KEYS) {
+    const node = remote && remote[k];
+    if (!node || typeof node.data !== 'string') continue;
+    if (node.by === DEVICE_ID) { lastSyncedJson[k] = node.data; continue; } // 내 쓰기의 메아리
+    if (node.data === lastSyncedJson[k]) continue; // 이미 반영된 값
+    try {
+      const val = JSON.parse(node.data);
+      if (JSON.stringify(state[k]) !== node.data) {
+        state[k] = val;
+        changed = true;
+      }
+      lastSyncedJson[k] = node.data;
+    } catch (e) { /* 손상된 필드는 무시 */ }
+  }
+  return changed;
+}
+
 function initCloud() {
   if (!FAMILY_KEY) return; // 아직 가족방이 없음 → 온보딩에서 연결
   try {
     if (!ensureFirebaseApp()) return; // 로컬 전용 모드
     if (cloudRef) cloudRef.off();
-    cloudRef = firebase.database().ref('families/' + FAMILY_KEY + '/state');
-    cloudRef.on('value', snap => {
-      const remote = snap.val();
-      if (!remote || !remote.data) {
-        // 클라우드가 비어있음 → 이 기기의 데이터를 첫 데이터로 올림
-        cloudSave();
-        return;
-      }
-      if (remote.by === DEVICE_ID) return; // 내가 방금 쓴 데이터의 메아리
-      let shared;
-      try { shared = JSON.parse(remote.data); } catch (e) { return; }
-      let changed = false;
-      for (const k of SHARED_KEYS) {
-        if (shared[k] !== undefined && JSON.stringify(shared[k]) !== JSON.stringify(state[k])) {
-          state[k] = shared[k];
-          changed = true;
+    const db = firebase.database();
+    cloudRef = db.ref('families/' + FAMILY_KEY + '/fields');
+    lastSyncedJson = {};
+
+    cloudRef.once('value')
+      .then(snap => {
+        if (snap.exists()) {
+          // 새 형식 데이터 존재 → 먼저 반영 (내 오래된 로컬로 덮어쓰지 않도록)
+          if (applyRemoteFields(snap.val())) {
+            applyDailyReset(state);
+            saveLocal();
+            render();
+          }
+          return;
         }
-      }
-      if (changed) {
-        applyDailyReset(state);
-        saveLocal();
-        render();
-        notifyNewPraise();
-      }
-    });
+        // 새 형식 없음 → 구 형식(state 한 덩어리)에서 한 번 이전
+        return db.ref('families/' + FAMILY_KEY + '/state').once('value').then(old => {
+          const remote = old.val();
+          if (!remote || !remote.data) return;
+          try {
+            const shared = JSON.parse(remote.data);
+            for (const k of SHARED_KEYS) {
+              if (shared[k] !== undefined) state[k] = shared[k];
+            }
+            applyDailyReset(state);
+            saveLocal();
+            render();
+          } catch (e) {}
+        });
+      })
+      .catch(() => {})
+      .then(() => {
+        cloudSave(); // 로컬 상태를 영역별로 업로드 (변경분만 — 이전/첫 업로드 포함)
+        cloudRef.on('value', snap => {
+          if (applyRemoteFields(snap.val())) {
+            applyDailyReset(state);
+            saveLocal();
+            render();
+            notifyNewPraise();
+          }
+        });
+      });
   } catch (e) { /* 연결 실패 → 로컬 전용 모드로 계속 */ }
 }
 
 function cloudSave() {
   if (!cloudRef) return;
-  const shared = {};
-  for (const k of SHARED_KEYS) shared[k] = state[k];
-  // 배열/객체를 JSON 문자열로 통째로 저장 (RTDB의 빈 배열 삭제 특성 회피)
-  cloudRef.set({
-    by: DEVICE_ID,
-    updatedAt: Date.now(),
-    data: JSON.stringify(shared),
-  }).catch(() => {});
+  const updates = {};
+  const now = Date.now();
+  for (const k of SHARED_KEYS) {
+    // 배열/객체를 JSON 문자열로 저장 (RTDB의 빈 배열 삭제 특성 회피)
+    const json = JSON.stringify(state[k]);
+    if (json === lastSyncedJson[k]) continue; // 안 바뀐 영역은 보내지 않음
+    lastSyncedJson[k] = json;
+    updates[k] = { by: DEVICE_ID, updatedAt: now, data: json };
+  }
+  if (Object.keys(updates).length === 0) return;
+  cloudRef.update(updates).catch(() => {});
+  // 아직 새 버전으로 갱신 안 된 옛 기기들도 볼 수 있게 구 형식도 함께 기록 (읽기 전용 호환)
+  try {
+    const shared = {};
+    for (const k of SHARED_KEYS) shared[k] = state[k];
+    firebase.database().ref('families/' + FAMILY_KEY + '/state').set({
+      by: DEVICE_ID,
+      updatedAt: now,
+      data: JSON.stringify(shared),
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 /* ---------- 칭찬 도착 알림 ----------
@@ -623,15 +677,19 @@ function joinFamilyRoom() {
   if (!ensureFirebaseApp()) { showToast('인터넷 연결을 확인해주세요'); return; }
   state.onboardBusy = true;
   render();
-  firebase.database().ref('families/' + code + '/state').once('value')
-    .then(snap => {
+  const db = firebase.database();
+  db.ref('families/' + code + '/fields').once('value')
+    .then(snap => snap.exists()
+      ? true
+      : db.ref('families/' + code + '/state').once('value').then(s => s.exists()))
+    .then(found => {
       state.onboardBusy = false;
-      if (!snap.exists()) {
+      if (!found) {
         showToast('그 코드의 가족방을 찾지 못했어요 🤔');
         render();
         return;
       }
-      adoptFamilyKey(code); // 방 데이터는 클라우드 리스너가 곧바로 받아온다
+      adoptFamilyKey(code); // 방 데이터는 클라우드 연결 시 곧바로 받아온다
       showToast('가족방에 들어왔어요! 🎉');
     })
     .catch(() => {
