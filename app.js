@@ -80,11 +80,6 @@ const DEFAULT_NAMES = {
 const KIDS = ['first', 'second'];
 const ALL_USERS = ['first', 'second', 'parent'];
 
-const KID_META = {
-  first:  { age: '8살' },
-  second: { age: '3살' },
-};
-
 // Chocolate chip positions (viewBox 0-100) — 4 variants for visual variety
 const COOKIE_CHIPS = [
   [{cx:30,cy:32,r:5},{cx:62,cy:38,r:4},{cx:44,cy:60,r:5},{cx:72,cy:66,r:3},{cx:28,cy:70,r:4}],
@@ -173,46 +168,18 @@ function newId() {
 
 /* ---------- Initial seed data ---------- */
 
-function seedTsToday(hour, min) {
-  const d = new Date();
-  d.setHours(hour, min, 0, 0);
-  return d.getTime();
-}
-function seedTsDaysAgo(days, hour, min) {
-  const d = new Date(Date.now() - days * 86400000);
-  d.setHours(hour, min, 0, 0);
-  return d.getTime();
-}
-
 function seedState() {
-  const today = todayKey();
+  // 새 가족은 빈 상태로 시작 — 부모님 홈의 "시작 미션 🚀"이 첫 사용을 안내한다
   return {
     me: 'first',
     tab: 'board',
     userNames: { ...DEFAULT_NAMES },
-    missions: [
-      { id: 1, kid: 'first',  text: '📚 숙제 다 하기',          state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
-      { id: 2, kid: 'first',  text: '📖 책 20분 읽기',          state: 'pending', by: 'parent', stars: 2, repeat: true,  lastReset: today },
-      { id: 3, kid: 'first',  text: '🤝 동생이랑 사이좋게 놀기', state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
-      { id: 4, kid: 'first',  text: '🎹 피아노 10분 연습',       state: 'pending', by: 'parent', stars: 3, repeat: false, lastReset: today },
-      { id: 5, kid: 'second', text: '🧸 장난감 정리하기',        state: 'todo',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
-      { id: 6, kid: 'second', text: '🪥 혼자 양치하기',          state: 'done',    by: 'parent', stars: 1, repeat: true,  lastReset: today },
-    ],
-    rewards: [
-      { id: 1, emoji: '🍦', text: '아이스크림',        price: 10, by: 'parent' },
-      { id: 2, emoji: '📺', text: '만화 30분 더 보기', price: 15, by: 'parent' },
-      { id: 3, emoji: '🎡', text: '주말 놀이공원',     price: 50, by: 'parent' },
-      { id: 4, emoji: '🧸', text: '장난감 하나',        price: 40, by: 'parent' },
-    ],
-    log: [
-      { id: 91, kid: 'second', text: '혼자 양치하기 성공', delta: 1, atMs: seedTsToday(8, 30) },
-      { id: 92, kid: 'first',  text: '어제 약속 3개 지킴',  delta: 3, atMs: seedTsDaysAgo(1, 19, 30) },
-    ],
-    posts: [
-      { id: 81, by: 'parent', text: '우리 가족 게시판이 생겼어요! 하고 싶은 말, 고마운 마음을 자유롭게 남겨보세요 💛', atMs: seedTsToday(9, 0), hearts: [] },
-    ],
+    missions: [],
+    rewards: [],
+    log: [],
+    posts: [],
     kidsEnabled: ['first'],
-    balance: { first: 12, second: 6 },
+    balance: { first: 0, second: 0 },
     pin: '0000',
     bonusKid: 'first', bonusText: '', talkText: '',
     nmKid: 'first', nmText: '', nmStars: 1, nmRepeat: true,
@@ -241,6 +208,7 @@ state.onboardBusy = false;
 state.onboardSetup = false;
 state.onboardKidName = '';
 state.onboardPin = '';
+state.onboardCode = '';
 
 function loadState() {
   try {
@@ -769,16 +737,17 @@ function createFamilyRoom() {
   state.onboardMode = 'setup-name';
   state.onboardKidName = '';
   state.onboardPin = '';
-  const code = makeRoomCode();
-  adoptFamilyKey(code); // 방 생성 → 이어서 첫 설정 마법사로
+  state.onboardCode = makeRoomCode(); // 코드만 미리 만들어두고,
+  render();                           // 방(DB)은 마법사를 끝냈을 때 생성한다
 }
 
-/* ----- 첫 설정 마법사 (새 가족방을 만든 직후) ----- */
+/* ----- 첫 설정 마법사 (새 가족방을 만들기 전 설정) -----
+   마법사 도중에는 아무것도 저장하지 않는다. 중간에 나가면
+   기기에도 DB에도 흔적이 남지 않고, "시작하기!"를 눌러야 방이 생긴다. */
 
 function setupSaveName() {
   const name = (state.onboardKidName || '').trim();
   if (name) state.userNames.first = name;
-  saveState();
   state.onboardMode = 'setup-pin';
   render();
 }
@@ -790,7 +759,6 @@ function setupSavePin() {
     return;
   }
   if (pin) state.pin = pin;
-  saveState();
   state.onboardMode = 'setup-guide';
   render();
 }
@@ -798,7 +766,9 @@ function setupSavePin() {
 function finishSetup() {
   state.onboardSetup = false;
   state.onboardMode = 'choose';
-  render();
+  state.me = 'parent'; // 설정한 사람은 부모님 — 홈의 "시작 미션"으로 안내
+  state.tab = 'board';
+  adoptFamilyKey(state.onboardCode); // 이제서야 방 생성 + 업로드
   celebrate('🎉', '우리 가족방 완성!', nameOf('first') + '(이)랑 같이 시작해보세요');
 }
 
@@ -1122,7 +1092,7 @@ function renderOnboarding() {
           <div class="onboard-guide-row"><span class="onboard-guide-num">4</span> 모은 쿠키로 쿠키마켓에서 보상 교환 🎁</div>
         </div>
         <div class="onboard-sub" style="margin:14px 0 4px">가족 폰·태블릿에서는 이 코드로 들어오세요</div>
-        <div class="family-code">${escapeHtml(FAMILY_KEY || '')}</div>
+        <div class="family-code">${escapeHtml(state.onboardCode || FAMILY_KEY || '')}</div>
         <button class="onboard-btn -primary" data-action="setup-finish">시작하기! 🍪</button>
         <div class="onboard-note">초대 코드는 설정 ⚙️에서 언제든 다시 볼 수 있어요</div>
       </div>
@@ -1247,9 +1217,14 @@ function renderKidBoard() {
     </svg>
   `;
 
-  const nextLine = nextReward
-    ? `<div class="board-next">${nextReward.emoji} ${escapeHtml(nextReward.text)}까지 ${nextReward.price - count}개!</div>`
-    : '<div class="board-next">모든 보상을 살 수 있어요! 🎉</div>';
+  let nextLine;
+  if (nextReward) {
+    nextLine = `<div class="board-next">${nextReward.emoji} ${escapeHtml(nextReward.text)}까지 ${nextReward.price - count}개!</div>`;
+  } else if (state.rewards.length === 0) {
+    nextLine = '<div class="board-next">엄마아빠가 곧 보상을 준비할 거예요 🎁</div>';
+  } else {
+    nextLine = '<div class="board-next">모든 보상을 살 수 있어요! 🎉</div>';
+  }
 
   // 엄마아빠의 칭찬 — 최근에 받은 칭찬을 다시 보며 뿌듯해지는 곳
   const PRAISE_EMOJIS = ['💖', '🌟', '🏅', '🎉', '👏', '🌈'];
@@ -1377,6 +1352,37 @@ function renderKidShop() {
 
 /* ---------- Parent: Home ---------- */
 
+/* 시작 미션 — 새 가족이 하나씩 해보며 앱을 익히는 체크리스트.
+   전부 완료하면 사라진다. */
+function renderStarterChecklist() {
+  const steps = [
+    { done: state.missions.length > 0,
+      icon: '📨', label: '약속 탭에서 ' + nameOf('first') + '에게 첫 약속 보내기' },
+    { done: state.rewards.length > 0,
+      icon: '🎁', label: '마켓 탭에서 보상 하나 올리기 (예: 아이스크림)' },
+    { done: state.missions.some(m => m.state !== 'todo') || state.log.length > 0,
+      icon: '💪', label: '위 이름표에서 ' + nameOf('first') + ' 화면으로 바꿔 "했어요!" 눌러보기' },
+    { done: (state.posts || []).length > 0,
+      icon: '📌', label: '게시판에 첫 인사 남기기' },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  if (doneCount === steps.length) return '';
+  const rows = steps.map(s => `
+    <div class="starter-row ${s.done ? '-done' : ''}">
+      <span class="starter-check">${s.done ? '✅' : '⬜'}</span>
+      <span class="starter-icon">${s.icon}</span>
+      <span class="starter-label">${escapeHtml(s.label)}</span>
+    </div>
+  `).join('');
+  return `
+    <div class="starter-box">
+      <div class="starter-head">시작 미션 🚀 <span class="starter-count">${doneCount}/${steps.length}</span></div>
+      ${rows}
+      <div class="starter-note">하나씩 해보면 사용법이 저절로 익혀져요!</div>
+    </div>
+  `;
+}
+
 function renderParentHome() {
   const kids = activeKids();
   if (kids.indexOf(state.bonusKid) < 0) state.bonusKid = kids[0];
@@ -1392,7 +1398,7 @@ function renderParentHome() {
 
   const kidsRow = kids.map(k => `
     <div class="kid-status-card -${k}">
-      <div class="kid-status-name">${escapeHtml(nameOf(k))}<span class="kid-status-age">${KID_META[k].age}</span></div>
+      <div class="kid-status-name">${escapeHtml(nameOf(k))}</div>
       <div class="kid-status-num">${state.balance[k] || 0}</div>
       <div class="kid-status-label">쿠키</div>
     </div>
@@ -1415,6 +1421,7 @@ function renderParentHome() {
   `;
 
   return `
+    ${renderStarterChecklist()}
     <div class="section-head">
       <span class="section-title">확인해주세요</span>
       ${badge}

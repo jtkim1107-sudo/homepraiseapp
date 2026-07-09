@@ -725,6 +725,52 @@ input {
   padding: 1px 8px;
   border-radius: 999px;
 }
+/* 시작 미션 (새 가족 안내 체크리스트) */
+.starter-box {
+  background: linear-gradient(135deg, #FFF9DB 0%, #FFF0F6 100%);
+  border: 1.5px solid var(--star);
+  border-radius: 18px;
+  padding: 15px 16px;
+  margin-bottom: 18px;
+}
+.starter-head {
+  font-family: 'Jua', sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.starter-count {
+  font-size: 13px;
+  color: var(--star-ink);
+  background: var(--star-bg);
+  padding: 2px 9px;
+  border-radius: 999px;
+  margin-left: 4px;
+}
+.starter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.starter-row.-done .starter-label {
+  color: var(--sub-3);
+  text-decoration: line-through;
+}
+.starter-check { font-size: 14px; flex-shrink: 0; }
+.starter-icon { flex-shrink: 0; }
+.starter-label { line-height: 1.4; word-break: keep-all; }
+.starter-note {
+  font-size: 11px;
+  color: var(--sub-2);
+  font-weight: 600;
+  margin-top: 8px;
+  text-align: center;
+}
+
 .empty-box {
   background: #F1F2F6;
   border-radius: 16px;
