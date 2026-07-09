@@ -191,6 +191,100 @@ input {
 .tab.-active .tab-label { color: var(--tab-accent, var(--navy)); }
 
 /* ============================================================
+   가족방 온보딩
+   ============================================================ */
+.onboard {
+  max-width: 340px;
+  margin: 8vh auto 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.onboard-emoji {
+  font-size: 64px;
+  animation: floatBob 2.4s ease-in-out infinite;
+}
+.onboard-title {
+  font-family: 'Jua', sans-serif;
+  font-size: 23px;
+  color: var(--ink);
+}
+.onboard-sub {
+  font-size: 14px;
+  color: var(--sub);
+  font-weight: 600;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.onboard-btn {
+  width: 100%;
+  padding: 15px;
+  border-radius: 16px;
+  border: none;
+  font-family: 'Jua', sans-serif;
+  font-size: 17px;
+}
+.onboard-btn.-primary {
+  background: var(--navy);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(52,58,85,0.25);
+}
+.onboard-btn.-secondary {
+  background: #fff;
+  color: var(--navy);
+  border: 1.5px solid var(--line-2);
+}
+.onboard-btn.-ghost {
+  background: none;
+  color: var(--sub-2);
+  font-size: 14px;
+  padding: 10px;
+}
+.onboard-btn:disabled { opacity: 0.55; }
+.onboard-input {
+  width: 100%;
+  border: 1.5px solid var(--line-2);
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 19px;
+  text-align: center;
+  letter-spacing: 2px;
+  font-weight: 800;
+  outline: none;
+  color: var(--ink);
+}
+.onboard-input:focus { border-color: var(--navy); }
+.onboard-note {
+  font-size: 12px;
+  color: var(--sub-3);
+  font-weight: 600;
+  line-height: 1.6;
+  margin-top: 14px;
+}
+
+/* 설정 안 초대 코드 표시 */
+.family-code {
+  font-family: 'Jua', sans-serif;
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: var(--navy);
+  background: #F1F3F9;
+  border-radius: 12px;
+  padding: 11px;
+  text-align: center;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.field-hint {
+  font-size: 11px;
+  color: var(--sub-3);
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* ============================================================
    KID — 내 쿠키
    ============================================================ */
 .board-head {

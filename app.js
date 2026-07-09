@@ -10,11 +10,51 @@
 const STORAGE_KEY = 'praise-app-v1';
 
 /* ---------- 클라우드 동기화 (Firebase Realtime Database) ----------
-   가족 모두가 같은 FAMILY_KEY "방"의 데이터를 실시간으로 공유한다.
-   인터넷이 없거나 Firebase 로드 실패 시 로컬 전용 모드로 동작. */
+   가족 모두가 같은 가족방(FAMILY_KEY)의 데이터를 실시간으로 공유한다.
+   인터넷이 없거나 Firebase 로드 실패 시 로컬 전용 모드로 동작.
+
+   가족방 키는 기기의 localStorage에 저장된다. 키가 없으면 온보딩
+   화면에서 "새 가족방 만들기" 또는 "초대 코드로 들어가기"를 거친다.
+   초대 코드 = 가족방 키. 코드를 아는 사람만 그 방에 접근할 수 있다. */
 const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
-const FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
 const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
+
+const LEGACY_FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
+const FAMILY_KEY_STORAGE = 'praise-app-family-key';
+
+let FAMILY_KEY = (function () {
+  try {
+    const saved = localStorage.getItem(FAMILY_KEY_STORAGE);
+    if (saved) return saved;
+    // 마이그레이션: 이 업데이트 전부터 쓰던 기기는 기존 가족방을 그대로 사용
+    if (localStorage.getItem(STORAGE_KEY)) {
+      localStorage.setItem(FAMILY_KEY_STORAGE, LEGACY_FAMILY_KEY);
+      return LEGACY_FAMILY_KEY;
+    }
+  } catch (e) { /* localStorage 불가 → 온보딩으로 */ }
+  return null;
+})();
+
+// 헷갈리는 글자(0/O, 1/I/L) 제외
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function makeRoomCode() {
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) code += '-';
+    code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+function normalizeRoomCode(raw) {
+  let s = String(raw || '').trim().replace(/\s+/g, '');
+  if (s.indexOf('fam_') !== 0) s = s.toUpperCase(); // 구버전 코드는 소문자 유지
+  s = s.replace(/[^A-Za-z0-9_-]/g, '');
+  // 하이픈 없이 8자를 입력해도 ABCD-2345 형태로 맞춰준다
+  if (/^[A-Z2-9]{8}$/.test(s)) s = s.slice(0, 4) + '-' + s.slice(4);
+  return s;
+}
 
 const DEVICE_ID = (function () {
   const KEY = 'praise-app-device-id';
@@ -195,6 +235,9 @@ state.settingsOpen = false;
 state.settingsDraft = {};
 state.pinOpen = false;
 state.pinInput = '';
+state.onboardMode = 'choose';
+state.onboardInput = '';
+state.onboardBusy = false;
 
 function loadState() {
   try {
@@ -249,11 +292,22 @@ function saveState() {
 /* ---------- 클라우드 읽기/쓰기 ---------- */
 
 let cloudRef = null;
+let cloudInited = false;
+
+function ensureFirebaseApp() {
+  if (typeof firebase === 'undefined' || !CLOUD_DATABASE_URL) return false;
+  if (!cloudInited) {
+    firebase.initializeApp({ databaseURL: CLOUD_DATABASE_URL });
+    cloudInited = true;
+  }
+  return true;
+}
 
 function initCloud() {
-  if (typeof firebase === 'undefined' || !CLOUD_DATABASE_URL) return; // 로컬 전용 모드
+  if (!FAMILY_KEY) return; // 아직 가족방이 없음 → 온보딩에서 연결
   try {
-    firebase.initializeApp({ databaseURL: CLOUD_DATABASE_URL });
+    if (!ensureFirebaseApp()) return; // 로컬 전용 모드
+    if (cloudRef) cloudRef.off();
     cloudRef = firebase.database().ref('families/' + FAMILY_KEY + '/state');
     cloudRef.on('value', snap => {
       const remote = snap.val();
@@ -547,6 +601,46 @@ function buyReward(id) {
   celebrate(r.emoji, r.text + ' 획득!', '축하해요! 🎉');
 }
 
+/* ---------- 가족방 온보딩 ---------- */
+
+function adoptFamilyKey(code) {
+  FAMILY_KEY = code;
+  try { localStorage.setItem(FAMILY_KEY_STORAGE, code); } catch (e) {}
+  saveLocal();
+  initCloud();
+  render();
+}
+
+function createFamilyRoom() {
+  const code = makeRoomCode();
+  adoptFamilyKey(code);
+  celebrate('🏠', '우리 가족방이 생겼어요!', '초대 코드는 설정 ⚙️에서 볼 수 있어요');
+}
+
+function joinFamilyRoom() {
+  const code = normalizeRoomCode(state.onboardInput);
+  if (!code) { showToast('초대 코드를 입력해주세요'); return; }
+  if (!ensureFirebaseApp()) { showToast('인터넷 연결을 확인해주세요'); return; }
+  state.onboardBusy = true;
+  render();
+  firebase.database().ref('families/' + code + '/state').once('value')
+    .then(snap => {
+      state.onboardBusy = false;
+      if (!snap.exists()) {
+        showToast('그 코드의 가족방을 찾지 못했어요 🤔');
+        render();
+        return;
+      }
+      adoptFamilyKey(code); // 방 데이터는 클라우드 리스너가 곧바로 받아온다
+      showToast('가족방에 들어왔어요! 🎉');
+    })
+    .catch(() => {
+      state.onboardBusy = false;
+      showToast('연결에 실패했어요. 잠시 후 다시 해주세요');
+      render();
+    });
+}
+
 /* ---------- 칭찬 기록 삭제 (부모만) ---------- */
 
 function deleteLogEntry(id) {
@@ -674,8 +768,18 @@ function addSecondKid() {
    ============================================================ */
 
 function renderHeader() {
-  const cls = meIsParent() ? '-parent' : (state.me === 'first' ? '-first' : '-second');
   const header = document.getElementById('app-header');
+  if (!FAMILY_KEY) {
+    header.className = 'app-header -parent';
+    header.innerHTML = `
+      <div class="header-top">
+        <div class="app-title">우리집 칭찬가게</div>
+        <div class="header-icons"><span class="header-star" aria-hidden="true">⭐</span></div>
+      </div>
+    `;
+    return;
+  }
+  const cls = meIsParent() ? '-parent' : (state.me === 'first' ? '-first' : '-second');
   header.className = 'app-header ' + cls;
 
   const chips = [...activeKids(), 'parent'].map(id => {
@@ -701,6 +805,10 @@ function renderHeader() {
 
 function renderTabs() {
   const nav = document.getElementById('app-tabs');
+  if (!FAMILY_KEY) {
+    nav.innerHTML = '';
+    return;
+  }
   const isP = meIsParent();
   const tabs = isP ? PARENT_TABS : KID_TABS;
   const accent = isP ? 'var(--navy)' : (state.me === 'first' ? 'var(--first)' : 'var(--second)');
@@ -715,6 +823,12 @@ function renderTabs() {
 
 function renderMain() {
   const main = document.getElementById('app-main');
+  if (!FAMILY_KEY) {
+    main.className = 'app-main';
+    main.innerHTML = renderOnboarding();
+    wireInputs();
+    return;
+  }
   let cls = 'app-main';
   if (!meIsParent()) cls += state.me === 'first' ? ' -first' : ' -second';
   main.className = cls;
@@ -737,6 +851,37 @@ function renderMain() {
 
   // Wire up controlled inputs (post-render because innerHTML resets values)
   wireInputs();
+}
+
+/* ---------- 가족방 온보딩 화면 ---------- */
+
+function renderOnboarding() {
+  if (state.onboardMode === 'join') {
+    return `
+      <div class="onboard">
+        <div class="onboard-emoji">🔑</div>
+        <div class="onboard-title">초대 코드로 들어가기</div>
+        <div class="onboard-sub">가족이 알려준 초대 코드를 입력해주세요</div>
+        <input class="onboard-input" id="input-onboard-code" placeholder="예: ABCD-2345"
+          autocapitalize="characters" autocomplete="off" spellcheck="false"
+          value="${escapeHtml(state.onboardInput || '')}" data-input="onboard-code"/>
+        <button class="onboard-btn -primary" data-action="onboard-join" ${state.onboardBusy ? 'disabled' : ''}>
+          ${state.onboardBusy ? '연결 중…' : '가족방 들어가기'}
+        </button>
+        <button class="onboard-btn -ghost" data-action="onboard-back">← 뒤로</button>
+      </div>
+    `;
+  }
+  return `
+    <div class="onboard">
+      <div class="onboard-emoji">🍪</div>
+      <div class="onboard-title">우리집 칭찬가게에 어서오세요!</div>
+      <div class="onboard-sub">약속을 지키면 쿠키를 모으고,<br>모은 쿠키로 보상을 바꾸는 가족 앱이에요</div>
+      <button class="onboard-btn -primary" data-action="onboard-create">🏠 새 가족방 만들기</button>
+      <button class="onboard-btn -secondary" data-action="onboard-join-mode">🔑 초대 코드로 들어가기</button>
+      <div class="onboard-note">가족방을 만들면 초대 코드가 생겨요.<br>가족 기기에서 그 코드로 들어오면 실시간으로 함께 쓸 수 있어요.</div>
+    </div>
+  `;
 }
 
 /* ---------- Kid: Board ---------- */
@@ -1321,7 +1466,14 @@ function renderSettings() {
   const addKidBtn = hasSecond ? '' : `
     <button class="btn-add-kid" data-action="add-second-kid">🧡 둘째 추가하기</button>
   `;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn;
+  const famField = `
+    <div>
+      <div class="field-label">가족방 초대 코드 🔑</div>
+      <div class="family-code">${escapeHtml(FAMILY_KEY || '')}</div>
+      <div class="field-hint">다른 기기에서 "초대 코드로 들어가기"에 이 코드를 입력하면 같은 가족방에 연결돼요. 가족 외에는 알려주지 마세요!</div>
+    </div>
+  `;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField;
 }
 
 function renderPinModal() {
@@ -1342,18 +1494,20 @@ function wireInputs() {
   document.querySelectorAll('[data-input]').forEach(input => {
     input.addEventListener('input', e => {
       const key = e.target.getAttribute('data-input');
-      if (key === 'bonus-text') state.bonusText = e.target.value;
-      if (key === 'nm-text')    state.nmText    = e.target.value;
-      if (key === 'nr-text')    state.nrText    = e.target.value;
-      if (key === 'talk-text')  state.talkText  = e.target.value;
+      if (key === 'bonus-text')   state.bonusText    = e.target.value;
+      if (key === 'nm-text')      state.nmText       = e.target.value;
+      if (key === 'nr-text')      state.nrText       = e.target.value;
+      if (key === 'talk-text')    state.talkText     = e.target.value;
+      if (key === 'onboard-code') state.onboardInput = e.target.value;
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const key = e.target.getAttribute('data-input');
-        if (key === 'bonus-text') giveBonus();
-        if (key === 'nm-text')    addMission();
-        if (key === 'nr-text')    addReward();
-        if (key === 'talk-text')  addPost();
+        if (key === 'bonus-text')   giveBonus();
+        if (key === 'nm-text')      addMission();
+        if (key === 'nr-text')      addReward();
+        if (key === 'talk-text')    addPost();
+        if (key === 'onboard-code') joinFamilyRoom();
       }
     });
   });
@@ -1502,6 +1656,20 @@ document.addEventListener('click', e => {
       }
       return;
     }
+    case 'onboard-create':
+      createFamilyRoom();
+      return;
+    case 'onboard-join-mode':
+      state.onboardMode = 'join';
+      render();
+      return;
+    case 'onboard-back':
+      state.onboardMode = 'choose';
+      render();
+      return;
+    case 'onboard-join':
+      joinFamilyRoom();
+      return;
   }
 });
 
