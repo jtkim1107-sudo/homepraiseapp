@@ -164,7 +164,7 @@ function newId() {
 function seedState() {
   // 새 가족은 빈 상태로 시작 — 부모님 홈의 "시작 미션 🚀"이 첫 사용을 안내한다
   return {
-    me: 'first',
+    me: 'parent', // 처음은 부모님 화면부터 — 부모님이 아이에게 소개해주는 흐름
     tab: 'board',
     userNames: { ...DEFAULT_NAMES },
     missions: [],
@@ -829,6 +829,8 @@ function joinFamilyRoom() {
         render();
         return;
       }
+      state.me = 'parent'; // 새 기기도 부모님 화면부터 시작
+      state.tab = 'board';
       adoptFamilyKey(code); // 방 데이터는 클라우드 연결 시 곧바로 받아온다
       showToast('가족방에 들어왔어요! 🎉');
     })
@@ -1365,7 +1367,7 @@ function renderStarterChecklist() {
     { done: state.rewards.length > 0,
       icon: '🎁', label: '마켓 탭에서 보상 하나 올리기 (예: 아이스크림)' },
     { done: state.missions.some(m => m.state !== 'todo') || state.log.length > 0,
-      icon: '💪', label: '위 이름표에서 ' + nameOf('first') + ' 화면으로 바꿔 "했어요!" 눌러보기' },
+      icon: '💪', label: '위 이름표에서 ' + nameOf('first') + ' 화면으로 바꿔, 아이와 함께 "했어요!" 눌러보기' },
     { done: (state.posts || []).length > 0,
       icon: '📌', label: '게시판에 첫 인사 남기기' },
   ];
