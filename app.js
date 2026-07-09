@@ -1051,6 +1051,15 @@ function renderMain() {
   }
   main.innerHTML = html;
 
+  // 화면(사용자/탭)이 바뀔 때만 부드러운 등장 애니메이션
+  const viewKey = state.me + '/' + state.tab;
+  if (renderMain._lastView !== viewKey) {
+    renderMain._lastView = viewKey;
+    main.classList.remove('-enter');
+    void main.offsetWidth;
+    main.classList.add('-enter');
+  }
+
   // Wire up controlled inputs (post-render because innerHTML resets values)
   wireInputs();
 }

@@ -32,6 +32,8 @@
   --star-bg: #FFF3BF;
   --star-ink: #B08900;
   --star: #FFD43B;
+  --shadow-card: 0 2px 8px rgba(46,36,90,0.05), 0 8px 22px rgba(46,36,90,0.06);
+  --shadow-pop: 0 6px 18px rgba(46,36,90,0.14);
 }
 
 /* ---------- Base ---------- */
@@ -51,6 +53,11 @@ html, body {
 button {
   font-family: inherit;
   cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+button:active {
+  transform: scale(0.95);
 }
 input {
   font-family: inherit;
@@ -96,10 +103,37 @@ input {
 
 /* ---------- Header ---------- */
 .app-header {
-  padding: 16px 18px 18px;
+  position: relative;
+  overflow: hidden;
+  padding: 16px 18px 36px; /* 아래 여백은 본문 시트가 겹쳐 올라오는 공간 */
   color: #fff;
   flex-shrink: 0;
   transition: background 0.25s ease;
+}
+/* 은은한 장식 원 */
+.app-header::before {
+  content: '';
+  position: absolute;
+  right: -34px;
+  top: -46px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.09);
+}
+.app-header::after {
+  content: '';
+  position: absolute;
+  right: 66px;
+  top: 34px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+}
+.header-top, .user-chips {
+  position: relative;
+  z-index: 1;
 }
 .app-header.-parent { background: linear-gradient(135deg, #343A55 0%, #4A3F7A 100%); }
 .app-header.-first  { background: linear-gradient(135deg, #7048E8 0%, #5F3DC4 100%); }
@@ -144,22 +178,31 @@ input {
   border: none;
   padding: 7px 14px;
   font-size: 13px;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 .chip.-kid           { background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); }
 .chip.-parent        { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); padding: 6px 11px; font-size: 12px; }
-.chip.-active        { background: #fff; color: var(--navy); }
+.chip.-active        { background: #fff; color: var(--navy); box-shadow: 0 3px 10px rgba(0,0,0,0.18); }
 .chip.-push-right    { margin-left: auto; }
 
-/* ---------- Main ---------- */
+/* ---------- Main — 헤더 위로 떠오르는 시트 ---------- */
 .app-main {
   flex: 1;
   overflow: auto;
-  padding: 18px 16px 20px;
-  background: #F5F6FA;
+  padding: 22px 16px 20px;
+  background: linear-gradient(180deg, #F7F8FC 0%, #F1F2F8 100%);
   transition: background 0.25s ease;
+  position: relative;
+  z-index: 2;
+  margin-top: -20px;
+  border-radius: 24px 24px 0 0;
 }
-.app-main.-first  { background: var(--first-tint); }
-.app-main.-second { background: var(--second-tint); }
+.app-main::-webkit-scrollbar { width: 0; height: 0; }
+.app-main.-first  { background: linear-gradient(180deg, #FBFAFF 0%, #F5F1FF 100%); }
+.app-main.-second { background: linear-gradient(180deg, #FFFBF6 0%, #FFF3E5 100%); }
+.app-main.-enter {
+  animation: viewIn 240ms ease-out;
+}
 
 /* ---------- Bottom tabs ---------- */
 .app-tabs {
@@ -365,8 +408,8 @@ input {
   padding: 20px 20px 18px;
   text-align: center;
 }
-.board-head.-first  { background: var(--first-bg);  box-shadow: 0 6px 22px rgba(112,72,232,0.1); }
-.board-head.-second { background: var(--second-bg); box-shadow: 0 6px 22px rgba(247,103,7,0.1); }
+.board-head.-first  { background: linear-gradient(165deg, #F5F1FF 0%, #EDE4FF 100%); border: 1px solid var(--first-light);  box-shadow: 0 6px 22px rgba(112,72,232,0.1); }
+.board-head.-second { background: linear-gradient(165deg, #FFF6EA 0%, #FFEAD0 100%); border: 1px solid var(--second-light); box-shadow: 0 6px 22px rgba(247,103,7,0.1); }
 .board-name {
   font-family: 'Jua', sans-serif;
   font-size: 19px;
@@ -438,6 +481,7 @@ input {
   color: var(--sub-3);
   font-weight: 700;
   margin-top: 8px;
+  animation: hintPulse 2.6s ease-in-out infinite;
 }
 .jar-slots {
   position: absolute;
@@ -580,7 +624,7 @@ input {
   border: 1px solid var(--card-border);
   border-radius: 22px;
   padding: 16px 18px;
-  box-shadow: 0 4px 16px rgba(60,40,120,0.06);
+  box-shadow: var(--shadow-card);
 }
 .mission-token {
   width: 44px;
@@ -641,8 +685,8 @@ input {
   border: none;
   color: #fff;
 }
-.btn-request.-first  { background: var(--first); }
-.btn-request.-second { background: var(--second); }
+.btn-request.-first  { background: linear-gradient(160deg, #7C58F0, #5F3DC4); box-shadow: 0 5px 14px rgba(112,72,232,0.35); }
+.btn-request.-second { background: linear-gradient(160deg, #FB7A1E, #E8590C); box-shadow: 0 5px 14px rgba(247,103,7,0.35); }
 .pill-pending {
   font-weight: 800;
   font-size: 12px;
@@ -712,7 +756,7 @@ input {
   border-radius: 22px;
   padding: 14px 16px;
   background: #fff;
-  box-shadow: 0 4px 16px rgba(60,40,120,0.06);
+  box-shadow: var(--shadow-card);
 }
 .shop-emoji {
   width: 54px;
@@ -750,8 +794,8 @@ input {
   min-width: 90px;
   text-align: center;
 }
-.btn-buy.-can-first  { background: var(--first);  color: #fff; }
-.btn-buy.-can-second { background: var(--second); color: #fff; }
+.btn-buy.-can-first  { background: linear-gradient(160deg, #7C58F0, #5F3DC4); color: #fff; box-shadow: 0 5px 14px rgba(112,72,232,0.32); }
+.btn-buy.-can-second { background: linear-gradient(160deg, #FB7A1E, #E8590C); color: #fff; box-shadow: 0 5px 14px rgba(247,103,7,0.32); }
 .btn-buy.-no { background: #F1F3F5; color: #ADB5BD; }
 
 /* ============================================================
@@ -823,8 +867,9 @@ input {
 }
 
 .empty-box {
-  background: #F1F2F6;
-  border-radius: 16px;
+  background: rgba(255,255,255,0.6);
+  border: 1.5px dashed var(--dashed);
+  border-radius: 18px;
   padding: 22px;
   text-align: center;
   color: #A6ABB6;
@@ -843,8 +888,8 @@ input {
   align-items: center;
   gap: 10px;
 }
-.pending-card.-first  { background: var(--first-bg); }
-.pending-card.-second { background: var(--second-bg); }
+.pending-card.-first  { background: var(--first-bg);  border: 1px solid var(--first-light);  box-shadow: var(--shadow-card); }
+.pending-card.-second { background: var(--second-bg); border: 1px solid var(--second-light); box-shadow: var(--shadow-card); }
 .pending-body {
   flex: 1;
   min-width: 0;
@@ -898,12 +943,13 @@ input {
 }
 .kid-status-card {
   flex: 1;
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 14px;
   text-align: center;
+  box-shadow: var(--shadow-card);
 }
-.kid-status-card.-first  { background: var(--first-bg); }
-.kid-status-card.-second { background: var(--second-bg); }
+.kid-status-card.-first  { background: linear-gradient(150deg, #F5F1FF, #ECE4FF); border: 1px solid var(--first-light); }
+.kid-status-card.-second { background: linear-gradient(150deg, #FFF6EA, #FFEBD1); border: 1px solid var(--second-light); }
 .kid-status-name {
   font-weight: 800;
   font-size: 13px;
@@ -972,7 +1018,7 @@ input {
   border-radius: 11px;
 }
 .btn-navy {
-  background: var(--navy);
+  background: linear-gradient(160deg, #414868, #343A55);
   color: #fff;
   font-family: 'Jua', sans-serif;
   font-size: 14px;
@@ -980,6 +1026,7 @@ input {
   border-radius: 12px;
   border: none;
   white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(52,58,85,0.28);
 }
 /* ============================================================
    PARENT — 약속
@@ -1007,6 +1054,11 @@ input {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(46,36,90,0.04);
+}
+.reward-row {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(46,36,90,0.04);
 }
 .parent-mission-icon {
   font-size: 17px;
@@ -1081,8 +1133,8 @@ input {
   border-radius: 14px;
   border: none;
 }
-.btn-submit.-first  { background: var(--first); }
-.btn-submit.-second { background: var(--second); }
+.btn-submit.-first  { background: linear-gradient(160deg, #7C58F0, #5F3DC4); box-shadow: 0 5px 14px rgba(112,72,232,0.3); }
+.btn-submit.-second { background: linear-gradient(160deg, #FB7A1E, #E8590C); box-shadow: 0 5px 14px rgba(247,103,7,0.3); }
 .form-note {
   text-align: center;
   font-size: 11px;
@@ -1219,7 +1271,8 @@ input {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #F5F6FA;
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 11px 14px;
 }
@@ -1472,7 +1525,9 @@ input {
 .modal-scrim {
   position: absolute;
   inset: 0;
-  background: rgba(20,24,45,0.4);
+  background: rgba(20,24,45,0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 .modal-panel {
   position: relative;
@@ -1795,6 +1850,14 @@ input {
 /* ============================================================
    Animations
    ============================================================ */
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
 @keyframes jarWobble {
   0%   { transform: rotate(0); }
   20%  { transform: rotate(-3deg) scale(1.02); }
