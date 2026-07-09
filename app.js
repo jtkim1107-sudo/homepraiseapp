@@ -824,18 +824,19 @@ function renderKidBoard() {
     : '<div class="board-next">모든 보상을 살 수 있어요! 🎉</div>';
 
   // 엄마아빠의 칭찬 — 최근에 받은 칭찬을 다시 보며 뿌듯해지는 곳
+  const PRAISE_EMOJIS = ['💖', '🌟', '🏅', '🎉', '👏', '🌈'];
   const praises = state.log
     .filter(l => l.kid === kid && l.delta > 0)
     .sort((a, b) => (b.atMs || 0) - (a.atMs || 0))
     .slice(0, 5);
   const praiseRows = praises.map(l => `
-    <div class="praise-row">
-      <span class="praise-emoji">💖</span>
+    <div class="praise-row ${themeCls}">
+      <span class="praise-emoji">${PRAISE_EMOJIS[(l.id || 0) % PRAISE_EMOJIS.length]}</span>
       <div class="praise-body">
         <div class="praise-text">${escapeHtml(l.text)}</div>
         <div class="praise-when">${l.atMs ? dayLabelFromKey(dayKeyFromMs(l.atMs)) : ''}</div>
       </div>
-      <span class="praise-delta">🍪+${l.delta}</span>
+      <span class="praise-delta">🍪 +${l.delta}</span>
     </div>
   `).join('');
   const praiseBlock = praises.length ? `
