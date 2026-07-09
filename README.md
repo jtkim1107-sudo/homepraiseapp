@@ -49,8 +49,9 @@
 powershell -ExecutionPolicy Bypass -File serve.ps1   # http://localhost:5173
 ```
 
-- 데이터는 Firebase Realtime Database로 **가족 기기 간 실시간 동기화**됩니다.
+- 데이터는 Firebase Realtime Database로 **가족 기기 간 실시간 동기화**됩니다 (영역별 분리 저장으로 동시 수정 충돌 방지).
 - 오프라인이면 LocalStorage로 동작하고, 연결되면 다시 동기화됩니다.
+- 서비스 워커(`sw.js`)로 **오프라인에서도 앱이 열립니다** — PWA 완성 (홈 화면 설치 + 오프라인 + 앱 아이콘).
 - 부모님 화면은 비밀번호(숫자 4자리, 기본 0000)로 잠겨 있습니다.
 - 매일 약속은 자정(KST) 기준으로 다시 생깁니다.
 - 반응형: 폰(<600px) / 태블릿(≥600px) 레이아웃.

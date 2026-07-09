@@ -1757,6 +1757,15 @@ if (window.visualViewport) {
   });
 }
 
+/* ---------- 서비스 워커 등록 (오프라인 지원) ---------- */
+
+if ('serviceWorker' in navigator &&
+    (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
 /* ============================================================
    Boot
    ============================================================ */
