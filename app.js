@@ -103,10 +103,9 @@ const PARENT_TABS = [
 ];
 
 const KID_TABS = [
-  { key: 'board',   label: '내 쿠키',  icon: '🍪' },
-  { key: 'mission', label: '약속',     icon: '💪' },
-  { key: 'shop',    label: '쿠키마켓', icon: '🎁' },
-  { key: 'talk',    label: '게시판',   icon: '📌' },
+  { key: 'board',   label: '내 쿠키', icon: '🍪' },
+  { key: 'mission', label: '약속',    icon: '💪' },
+  { key: 'talk',    label: '게시판',  icon: '📌' },
 ];
 
 /* ---------- Utilities ---------- */
@@ -1038,9 +1037,9 @@ function renderMain() {
   const isP = meIsParent();
   let html = '';
   if (!isP) {
+    if (state.tab === 'shop')    state.tab = 'board'; // 구버전 탭 → 내 쿠키로 통합됨
     if (state.tab === 'board')   html = renderKidBoard();
     if (state.tab === 'mission') html = renderKidMission();
-    if (state.tab === 'shop')    html = renderKidShop();
     if (state.tab === 'talk')    html = renderTalk();
   } else {
     if (state.tab === 'board')   html = renderParentHome();
@@ -1249,26 +1248,31 @@ function renderKidBoard() {
     nextLine = '<div class="board-next">모든 보상을 살 수 있어요! 🎉</div>';
   }
 
-  // 엄마아빠의 칭찬 — 최근에 받은 칭찬을 다시 보며 뿌듯해지는 곳
-  const PRAISE_EMOJIS = ['💖', '🌟', '🏅', '🎉', '👏', '🌈'];
-  const praises = state.log
-    .filter(l => l.kid === kid && l.delta > 0)
-    .sort((a, b) => (b.atMs || 0) - (a.atMs || 0))
-    .slice(0, 5);
-  const praiseRows = praises.map(l => `
-    <div class="praise-row ${themeCls}">
-      <span class="praise-emoji">${PRAISE_EMOJIS[(l.id || 0) % PRAISE_EMOJIS.length]}</span>
-      <div class="praise-body">
-        <div class="praise-text">${escapeHtml(l.text)}</div>
-        <div class="praise-when">${l.atMs ? dayLabelFromKey(dayKeyFromMs(l.atMs)) : ''}</div>
+  // 쿠키마켓 — 모은 쿠키를 바로 꺼내서 보상으로 바꾸는 곳
+  const shopCards = state.rewards.map(r => {
+    const can = count >= r.price;
+    const btnCls = can ? ('btn-buy -can-' + (themeCls === '-first' ? 'first' : 'second')) : 'btn-buy -no';
+    const btnLabel = can ? '꺼내 바꾸기!' : (r.price - count) + '개 더';
+    return `
+      <div class="shop-card">
+        <div class="shop-emoji">${r.emoji}</div>
+        <div class="shop-body">
+          <div class="shop-name">${escapeHtml(r.text)}</div>
+          <div class="shop-price">쿠키 ${r.price}개</div>
+        </div>
+        <button class="${btnCls}" data-action="buy" data-id="${r.id}">${btnLabel}</button>
       </div>
-      <span class="praise-delta">🍪 +${l.delta}</span>
+    `;
+  }).join('');
+  const shopBlock = `
+    <div class="shop-section-head">
+      <span class="sub-head" style="margin:0">쿠키마켓 🎁</span>
+      <span class="shop-owner">${escapeHtml(nameOf('parent'))}네 가게</span>
     </div>
-  `).join('');
-  const praiseBlock = praises.length ? `
-    <div class="sub-head">엄마아빠의 칭찬 💖</div>
-    <div class="praise-list">${praiseRows}</div>
-  ` : '';
+    <div class="shop-list">
+      ${shopCards || `<div class="empty-box">아직 준비된 보상이 없어요.<br>엄마아빠가 곧 채워줄 거예요!</div>`}
+    </div>
+  `;
 
   return `
     <div class="board-head ${themeCls}">
@@ -1282,7 +1286,7 @@ function renderKidBoard() {
       ${count > 0 ? '<div class="jar-hint">쿠키통을 콕 눌러봐! 👆</div>' : ''}
       ${nextLine}
     </div>
-    ${praiseBlock}
+    ${shopBlock}
   `;
 }
 
@@ -1337,11 +1341,34 @@ function renderKidMission() {
   const list = sortMissions(state.missions.filter(m => m.kid === kid));
 
   const cards = list.map(m => renderMissionCard(m, themeCls, true)).join('');
+
+  // 엄마아빠의 칭찬 — 약속을 지키면 여기에 쌓인다
+  const PRAISE_EMOJIS = ['💖', '🌟', '🏅', '🎉', '👏', '🌈'];
+  const praises = state.log
+    .filter(l => l.kid === kid && l.delta > 0)
+    .sort((a, b) => (b.atMs || 0) - (a.atMs || 0))
+    .slice(0, 5);
+  const praiseRows = praises.map(l => `
+    <div class="praise-row ${themeCls}">
+      <span class="praise-emoji">${PRAISE_EMOJIS[(l.id || 0) % PRAISE_EMOJIS.length]}</span>
+      <div class="praise-body">
+        <div class="praise-text">${escapeHtml(l.text)}</div>
+        <div class="praise-when">${l.atMs ? dayLabelFromKey(dayKeyFromMs(l.atMs)) : ''}</div>
+      </div>
+      <span class="praise-delta">🍪 +${l.delta}</span>
+    </div>
+  `).join('');
+  const praiseBlock = praises.length ? `
+    <div class="sub-head">엄마아빠의 칭찬 💖</div>
+    <div class="praise-list">${praiseRows}</div>
+  ` : '';
+
   return `
     <h2 class="screen-title">오늘의 약속 💪</h2>
     <div class="mission-list">
       ${cards || `<div class="empty-box">오늘은 약속이 없어요 ✨</div>`}
     </div>
+    ${praiseBlock}
   `;
 }
 
@@ -1379,44 +1406,6 @@ function renderMissionCard(m, themeCls, kidCanRequest) {
   `;
 }
 
-
-/* ---------- Kid: Shop ---------- */
-
-function renderKidShop() {
-  const kid = myKidId();
-  const themeCls = kid === 'first' ? '-first' : '-second';
-  const bal = state.balance[kid] || 0;
-
-  const cards = state.rewards.map(r => {
-    const can = bal >= r.price;
-    const btnCls = can ? ('btn-buy -can-' + (themeCls === '-first' ? 'first' : 'second')) : 'btn-buy -no';
-    const btnLabel = can ? '바꾸기!' : (r.price - bal) + '개 더';
-    return `
-      <div class="shop-card">
-        <div class="shop-emoji">${r.emoji}</div>
-        <div class="shop-body">
-          <div class="shop-name">${escapeHtml(r.text)}</div>
-          <div class="shop-price">쿠키 ${r.price}개</div>
-        </div>
-        <button class="${btnCls}" data-action="buy" data-id="${r.id}">${btnLabel}</button>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="shop-head">
-      <span class="shop-title">쿠키마켓 🎁</span>
-      <span class="shop-balance ${themeCls}">내 쿠키 ${bal}개</span>
-    </div>
-    <div class="shop-info">
-      <span class="shop-owner">${escapeHtml(nameOf('parent'))} 쿠키마켓</span>
-      <span class="shop-info-sub">정성껏 준비한 보상이에요</span>
-    </div>
-    <div class="shop-list">
-      ${cards || `<div class="empty-box">아직 준비된 보상이 없어요</div>`}
-    </div>
-  `;
-}
 
 /* ---------- Parent: Home ---------- */
 

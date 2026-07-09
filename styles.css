@@ -743,6 +743,12 @@ input {
   color: var(--sub-3);
   font-weight: 600;
 }
+.shop-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 24px 2px 12px;
+}
 .shop-list {
   display: flex;
   flex-direction: column;
