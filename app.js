@@ -14,7 +14,7 @@ const STORAGE_KEY = 'praise-app-v1';
    인터넷이 없거나 Firebase 로드 실패 시 로컬 전용 모드로 동작. */
 const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
-const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts'];
+const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
 
 const DEVICE_ID = (function () {
   const KEY = 'praise-app-device-id';
@@ -171,6 +171,7 @@ function seedState() {
     posts: [
       { id: 81, by: 'parent', text: '우리 가족 게시판이 생겼어요! 하고 싶은 말, 고마운 마음을 자유롭게 남겨보세요 💛', atMs: seedTsToday(9, 0), hearts: [] },
     ],
+    kidsEnabled: ['first'],
     balance: { first: 12, second: 6 },
     pin: '0000',
     bonusKid: 'first', bonusText: '', talkText: '',
@@ -181,7 +182,7 @@ function seedState() {
 
 /* ---------- State & persistence ---------- */
 
-const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts'];
+const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
 
 const state = loadState();
 
@@ -206,6 +207,15 @@ function loadState() {
     }
     // 구버전 마이그레이션: 엄마/아빠 계정 → 부모님 통합
     if (merged.me === 'dad' || merged.me === 'mom') merged.me = 'parent';
+    // kidsEnabled 정리: 항상 첫째 포함, KIDS에 있는 값만
+    if (!Array.isArray(merged.kidsEnabled) || merged.kidsEnabled.indexOf('first') < 0) {
+      merged.kidsEnabled = ['first'];
+    }
+    merged.kidsEnabled = merged.kidsEnabled.filter(k => KIDS.indexOf(k) >= 0);
+    // 현재 사용자가 비활성 아이면 첫째로 전환
+    if (merged.me !== 'parent' && merged.kidsEnabled.indexOf(merged.me) < 0) {
+      merged.me = 'first';
+    }
     merged.missions = merged.missions.map(m =>
       (m.by === 'dad' || m.by === 'mom') ? { ...m, by: 'parent' } : m);
     merged.rewards = merged.rewards.map(r =>
@@ -266,6 +276,7 @@ function initCloud() {
         applyDailyReset(state);
         saveLocal();
         render();
+        notifyNewPraise();
       }
     });
   } catch (e) { /* 연결 실패 → 로컬 전용 모드로 계속 */ }
@@ -281,6 +292,33 @@ function cloudSave() {
     updatedAt: Date.now(),
     data: JSON.stringify(shared),
   }).catch(() => {});
+}
+
+/* ---------- 칭찬 도착 알림 ----------
+   부모가 다른 기기에서 쿠키를 주면, 아이 기기에 실시간으로
+   축하 화면이 뜬다. 이 기기에서 마지막으로 본 시각 이후의
+   새 칭찬만 알린다. */
+
+let lastPraiseSeenMs = Date.now();
+
+function notifyNewPraise() {
+  const kid = myKidId();
+  if (!kid) return;
+  const fresh = state.log.filter(l =>
+    l.kid === kid && l.delta > 0 && (l.atMs || 0) > lastPraiseSeenMs);
+  if (fresh.length === 0) return;
+  lastPraiseSeenMs = Math.max(...fresh.map(l => l.atMs || 0));
+  const latest = fresh.slice().sort((a, b) => (b.atMs || 0) - (a.atMs || 0))[0];
+  const total = fresh.reduce((sum, l) => sum + l.delta, 0);
+  const nonce = Date.now();
+  state.award = { kid: kid, count: total, nonce: nonce };
+  celebrate('💖', '엄마아빠의 칭찬이 도착했어요!', latest.text + ' · 쿠키 ' + total + '개 🍪');
+  setTimeout(() => {
+    if (state.award && state.award.nonce === nonce) {
+      state.award = null;
+      render();
+    }
+  }, 1800);
 }
 
 function applyDailyReset(s) {
@@ -301,6 +339,7 @@ function isParent(id)       { return id === 'parent'; }
 function meIsParent()       { return isParent(state.me); }
 function myKidId()          { return isParent(state.me) ? null : state.me; }
 function kidTheme(kidId)    { return kidId === 'first' ? 'first' : 'second'; }
+function activeKids()       { return KIDS.filter(k => (state.kidsEnabled || ['first']).indexOf(k) >= 0); }
 
 /* ============================================================
    Actions
@@ -580,7 +619,7 @@ function saveSettings() {
     showToast('비밀번호는 숫자 4자리로 해주세요');
     return;
   }
-  for (const id of ALL_USERS) {
+  for (const id of ['parent', ...activeKids()]) {
     const raw = (draft[id] || '').trim();
     state.userNames[id] = raw || DEFAULT_NAMES[id];
   }
@@ -595,6 +634,15 @@ function resetNames() {
   render();
 }
 
+function addSecondKid() {
+  if (activeKids().indexOf('second') >= 0) return;
+  state.kidsEnabled = ['first', 'second'];
+  if (!state.userNames.second) state.userNames.second = DEFAULT_NAMES.second;
+  saveState();
+  render();
+  showToast('둘째가 추가됐어요! 이름을 정해주세요 🧡');
+}
+
 /* ============================================================
    Rendering — build HTML strings, then set innerHTML
    ============================================================ */
@@ -604,7 +652,7 @@ function renderHeader() {
   const header = document.getElementById('app-header');
   header.className = 'app-header ' + cls;
 
-  const chips = ALL_USERS.map(id => {
+  const chips = [...activeKids(), 'parent'].map(id => {
     const active = state.me === id;
     let chipCls = 'chip ';
     if (active) chipCls += '-active';
@@ -759,6 +807,26 @@ function renderKidBoard() {
     ? `<div class="board-next">${nextReward.emoji} ${escapeHtml(nextReward.text)}까지 ${nextReward.price - count}개!</div>`
     : '<div class="board-next">모든 보상을 살 수 있어요! 🎉</div>';
 
+  // 엄마아빠의 칭찬 — 최근에 받은 칭찬을 다시 보며 뿌듯해지는 곳
+  const praises = state.log
+    .filter(l => l.kid === kid && l.delta > 0)
+    .sort((a, b) => (b.atMs || 0) - (a.atMs || 0))
+    .slice(0, 5);
+  const praiseRows = praises.map(l => `
+    <div class="praise-row">
+      <span class="praise-emoji">💖</span>
+      <div class="praise-body">
+        <div class="praise-text">${escapeHtml(l.text)}</div>
+        <div class="praise-when">${l.atMs ? dayLabelFromKey(dayKeyFromMs(l.atMs)) : ''}</div>
+      </div>
+      <span class="praise-delta">🍪+${l.delta}</span>
+    </div>
+  `).join('');
+  const praiseBlock = praises.length ? `
+    <div class="sub-head">엄마아빠의 칭찬 💖</div>
+    <div class="praise-list">${praiseRows}</div>
+  ` : '';
+
   return `
     <div class="board-head ${themeCls}">
       <div class="board-name">${escapeHtml(nameOf(kid))}의 쿠키</div>
@@ -769,6 +837,7 @@ function renderKidBoard() {
       </div>
       ${nextLine}
     </div>
+    ${praiseBlock}
   `;
 }
 
@@ -864,7 +933,9 @@ function renderKidShop() {
 /* ---------- Parent: Home ---------- */
 
 function renderParentHome() {
-  const pending = state.missions.filter(m => m.state === 'pending');
+  const kids = activeKids();
+  if (kids.indexOf(state.bonusKid) < 0) state.bonusKid = kids[0];
+  const pending = state.missions.filter(m => m.state === 'pending' && kids.indexOf(m.kid) >= 0);
 
   const pendingBlock = pending.length === 0
     ? `<div class="empty-box">지금은 확인할 약속이 없어요 ✨</div>`
@@ -874,7 +945,7 @@ function renderParentHome() {
     ? `<span class="pending-badge">${pending.length}</span>`
     : '';
 
-  const kidsRow = KIDS.map(k => `
+  const kidsRow = kids.map(k => `
     <div class="kid-status-card -${k}">
       <div class="kid-status-name">${escapeHtml(nameOf(k))}<span class="kid-status-age">${KID_META[k].age}</span></div>
       <div class="kid-status-num">${state.balance[k] || 0}</div>
@@ -886,7 +957,7 @@ function renderParentHome() {
     <div class="sub-head">칭찬 쿠키 바로 주기 💖</div>
     <div class="bonus-box">
       <div class="pill-row">
-        ${KIDS.map(k => {
+        ${kids.map(k => {
           const cls = 'pill' + (state.bonusKid === k ? (' -active-' + k) : '');
           return `<button class="${cls}" data-action="set-bonus-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
         }).join('')}
@@ -931,7 +1002,9 @@ function renderPendingCard(m) {
 /* ---------- Parent: Mission ---------- */
 
 function renderParentMission() {
-  const sections = KIDS.map(k => {
+  const kids = activeKids();
+  if (kids.indexOf(state.nmKid) < 0) state.nmKid = kids[0];
+  const sections = kids.map(k => {
     const list = sortMissions(state.missions.filter(m => m.kid === k));
     const rows = list.map(m => renderParentMissionRow(m)).join('');
     return `
@@ -944,7 +1017,7 @@ function renderParentMission() {
     `;
   }).join('');
 
-  const kidPills = KIDS.map(k => {
+  const kidPills = kids.map(k => {
     const cls = 'pill' + (state.nmKid === k ? (' -active-' + k) : '');
     return `<button class="${cls}" data-action="set-nm-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
   }).join('');
@@ -1196,11 +1269,13 @@ function renderSettings() {
   }
   el.hidden = false;
   const draft = state.settingsDraft || {};
-  const fields = [
+  const hasSecond = activeKids().indexOf('second') >= 0;
+  const fieldDefs = [
     { id: 'parent', label: '부모님 표시 이름' },
     { id: 'first', label: '첫째 이름' },
-    { id: 'second', label: '둘째 이름' },
-  ].map(f => `
+  ];
+  if (hasSecond) fieldDefs.push({ id: 'second', label: '둘째 이름' });
+  const fields = fieldDefs.map(f => `
     <div>
       <div class="field-label">${f.label}</div>
       <input class="field-input" data-settings-id="${f.id}" placeholder="${DEFAULT_NAMES[f.id]}" value="${escapeHtml(draft[f.id] || '')}"/>
@@ -1212,7 +1287,10 @@ function renderSettings() {
       <input class="field-input" data-settings-id="pin" inputmode="numeric" maxlength="4" placeholder="바꾸려면 입력 (처음엔 0000)" value="${escapeHtml(draft.pin || '')}"/>
     </div>
   `;
-  document.getElementById('settings-body').innerHTML = fields + pinField;
+  const addKidBtn = hasSecond ? '' : `
+    <button class="btn-add-kid" data-action="add-second-kid">🧡 둘째 추가하기</button>
+  `;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn;
 }
 
 function renderPinModal() {
@@ -1379,6 +1457,9 @@ document.addEventListener('click', e => {
       return;
     case 'toggle-heart':
       togglePostHeart(Number(target.getAttribute('data-id')));
+      return;
+    case 'add-second-kid':
+      addSecondKid();
       return;
   }
 });
