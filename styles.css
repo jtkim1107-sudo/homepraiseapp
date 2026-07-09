@@ -1393,6 +1393,21 @@ input {
   font-family: 'Jua', sans-serif;
   font-size: 15px;
 }
+.btn-notify {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line-2);
+  background: #F5F6FA;
+  color: var(--sub);
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+}
+.btn-notify.-on {
+  background: var(--star-bg);
+  border-color: var(--star);
+  color: var(--star-ink);
+}
 .modal-actions {
   display: flex;
   gap: 8px;

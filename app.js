@@ -371,6 +371,7 @@ function initCloud() {
             saveLocal();
             render();
             notifyNewPraise();
+            notifyNewPending();
           }
         });
       });
@@ -402,6 +403,63 @@ function cloudSave() {
   } catch (e) {}
 }
 
+/* ---------- 기기 알림 (시스템 알림) ----------
+   설정에서 켜면, 화면을 안 보고 있을 때 폰 알림으로 알려준다.
+   - 부모 기기: 아이가 "했어요!"를 눌렀을 때
+   - 아이 기기: 칭찬 쿠키가 도착했을 때 */
+
+const NOTIFY_PREF_KEY = 'praise-app-notify';
+
+let notifyPref = (function () {
+  try { return localStorage.getItem(NOTIFY_PREF_KEY) === 'on'; } catch (e) { return false; }
+})();
+
+function notificationsSupported() {
+  return typeof Notification !== 'undefined';
+}
+
+function notificationsOn() {
+  return notifyPref && notificationsSupported() && Notification.permission === 'granted';
+}
+
+function toggleNotifications() {
+  if (!notificationsSupported()) {
+    showToast('이 브라우저는 알림을 지원하지 않아요 (홈 화면 앱으로 열어보세요)');
+    return;
+  }
+  if (notifyPref) {
+    notifyPref = false;
+    try { localStorage.setItem(NOTIFY_PREF_KEY, 'off'); } catch (e) {}
+    showToast('이 기기의 알림을 껐어요');
+    render();
+    return;
+  }
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') {
+      notifyPref = true;
+      try { localStorage.setItem(NOTIFY_PREF_KEY, 'on'); } catch (e) {}
+      showToast('알림을 켰어요 🔔');
+    } else {
+      showToast('브라우저 설정에서 알림 권한을 허용해주세요');
+    }
+    render();
+  });
+}
+
+function showSystemNotification(title, body) {
+  if (!notificationsOn()) return;
+  if (!document.hidden) return; // 화면을 보고 있으면 인앱 표시로 충분
+  const opts = { body: body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'praise-app' };
+  if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg && reg.showNotification) reg.showNotification(title, opts);
+      else { try { new Notification(title, opts); } catch (e) {} }
+    }).catch(() => {});
+  } else {
+    try { new Notification(title, opts); } catch (e) {}
+  }
+}
+
 /* ---------- 칭찬 도착 알림 ----------
    부모가 다른 기기에서 쿠키를 주면, 아이 기기에 실시간으로
    축하 화면이 뜬다. 이 기기에서 마지막으로 본 시각 이후의
@@ -421,12 +479,39 @@ function notifyNewPraise() {
   const nonce = Date.now();
   state.award = { kid: kid, count: total, nonce: nonce };
   celebrate('💖', '엄마아빠의 칭찬이 도착했어요!', latest.text + ' · 쿠키 ' + total + '개 🍪');
+  showSystemNotification('엄마아빠의 칭찬이 도착했어요! 💖', latest.text + ' · 쿠키 ' + total + '개 🍪');
   setTimeout(() => {
     if (state.award && state.award.nonce === nonce) {
       state.award = null;
       render();
     }
   }, 1800);
+}
+
+/* ---------- "했어요!" 도착 알림 (부모 기기) ---------- */
+
+let knownPendingIds = new Set();
+
+function rememberCurrentPending() {
+  knownPendingIds = new Set(
+    state.missions.filter(m => m.state === 'pending').map(m => m.id));
+}
+
+function notifyNewPending() {
+  if (!meIsParent()) {
+    rememberCurrentPending();
+    return;
+  }
+  const kids = activeKids();
+  const fresh = state.missions.filter(m =>
+    m.state === 'pending' && kids.indexOf(m.kid) >= 0 && !knownPendingIds.has(m.id));
+  rememberCurrentPending();
+  if (fresh.length === 0) return;
+  const first = fresh[0];
+  const more = fresh.length > 1 ? ' 외 ' + (fresh.length - 1) + '개' : '';
+  showSystemNotification(
+    nameOf(first.kid) + ': 했어요! 🙌',
+    first.text + more + ' — 확인하고 쿠키를 주세요 🍪');
 }
 
 function applyDailyReset(s) {
@@ -1531,7 +1616,17 @@ function renderSettings() {
       <div class="field-hint">다른 기기에서 "초대 코드로 들어가기"에 이 코드를 입력하면 같은 가족방에 연결돼요. 가족 외에는 알려주지 마세요!</div>
     </div>
   `;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField;
+  const notifyOn = notificationsOn();
+  const notifyField = `
+    <div>
+      <div class="field-label">이 기기 알림 🔔</div>
+      <button class="btn-notify ${notifyOn ? '-on' : ''}" data-action="toggle-notify">
+        ${notifyOn ? '🔔 알림 켜짐 — 끄려면 누르기' : '🔕 알림 꺼짐 — 켜려면 누르기'}
+      </button>
+      <div class="field-hint">부모님 기기: 아이가 "했어요!"를 누르면 알려드려요. 아이 기기: 칭찬 쿠키가 도착하면 알려줘요. 앱이 열려 있거나 최근에 사용 중일 때 동작해요.</div>
+    </div>
+  `;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField;
 }
 
 function renderPinModal() {
@@ -1728,6 +1823,9 @@ document.addEventListener('click', e => {
     case 'onboard-join':
       joinFamilyRoom();
       return;
+    case 'toggle-notify':
+      toggleNotifications();
+      return;
   }
 });
 
@@ -1770,5 +1868,6 @@ if ('serviceWorker' in navigator &&
    Boot
    ============================================================ */
 
+rememberCurrentPending(); // 부팅 시점의 '확인 대기'는 이미 본 것으로 간주
 render();
 initCloud();

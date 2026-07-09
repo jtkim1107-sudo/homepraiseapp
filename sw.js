@@ -35,6 +35,19 @@ self.addEventListener('activate', e => {
   );
 });
 
+// 알림을 누르면 앱을 앞으로 가져오거나 새로 연다
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if ('focus' in c) return c.focus();
+      }
+      return clients.openWindow('.');
+    })
+  );
+});
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
