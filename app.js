@@ -69,7 +69,7 @@ const CONFETTI_CHARS = ['🎉','✨','⭐','💫','🌈','🎊','💛','💜','�
 const PARENT_TABS = [
   { key: 'board',   label: '홈',     icon: '🏠' },
   { key: 'mission', label: '약속',   icon: '📝' },
-  { key: 'rewards', label: '시장',   icon: '🎁' },
+  { key: 'rewards', label: '마켓',   icon: '🎁' },
   { key: 'talk',    label: '게시판', icon: '📌' },
   { key: 'log',     label: '기록',   icon: '📋' },
 ];
@@ -77,7 +77,7 @@ const PARENT_TABS = [
 const KID_TABS = [
   { key: 'board',   label: '내 쿠키',    icon: '🍪' },
   { key: 'mission', label: '오늘의 약속', icon: '💪' },
-  { key: 'shop',    label: '달란트시장',  icon: '🎁' },
+  { key: 'shop',    label: '쿠키마켓',  icon: '🎁' },
   { key: 'talk',    label: '게시판',      icon: '📌' },
 ];
 
@@ -463,7 +463,7 @@ function addReward() {
   });
   state.nrText = '';
   saveState();
-  showToast('달란트시장에 새 보상이 올라왔어요 🎁');
+  showToast('쿠키마켓에 새 보상이 올라왔어요 🎁');
 }
 
 function changeRewardPrice(id, delta) {
@@ -848,11 +848,11 @@ function renderKidShop() {
 
   return `
     <div class="shop-head">
-      <span class="shop-title">달란트시장 🎁</span>
+      <span class="shop-title">쿠키마켓 🎁</span>
       <span class="shop-balance ${themeCls}">내 쿠키 ${bal}개</span>
     </div>
     <div class="shop-info">
-      <span class="shop-owner">${escapeHtml(nameOf('parent'))} 달란트시장</span>
+      <span class="shop-owner">${escapeHtml(nameOf('parent'))} 쿠키마켓</span>
       <span class="shop-info-sub">정성껏 준비한 보상이에요</span>
     </div>
     <div class="shop-list">
@@ -1039,12 +1039,12 @@ function renderParentRewards() {
           <button class="step-btn-lg" data-action="nr-price-inc">+</button>
         </div>
       </div>
-      <button class="btn-navy" style="width:100%;padding:13px;font-size:16px;border-radius:14px" data-action="add-reward">달란트시장에 올리기</button>
+      <button class="btn-navy" style="width:100%;padding:13px;font-size:16px;border-radius:14px" data-action="add-reward">쿠키마켓에 올리기</button>
     </div>
   `;
 
   return `
-    <div class="section-head"><span class="section-title">달란트시장 관리 🎁</span></div>
+    <div class="section-head"><span class="section-title">쿠키마켓 관리 🎁</span></div>
     <div style="display:flex;flex-direction:column;gap:9px">${rows}</div>
     ${addForm}
   `;
