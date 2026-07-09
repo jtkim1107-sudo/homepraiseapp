@@ -537,6 +537,22 @@ function buyReward(id) {
   celebrate(r.emoji, r.text + ' 획득!', '축하해요! 🎉');
 }
 
+/* ---------- 칭찬 기록 삭제 (부모만) ---------- */
+
+function deleteLogEntry(id) {
+  if (!meIsParent()) return;
+  const l = state.log.find(x => x.id === id);
+  if (!l) return;
+  state.log = state.log.filter(x => x.id !== id);
+  // 칭찬으로 지급된 쿠키는 함께 회수
+  if (l.delta > 0 && l.kid) {
+    state.balance[l.kid] = Math.max(0, (state.balance[l.kid] || 0) - l.delta);
+  }
+  saveState();
+  render();
+  showToast(l.delta > 0 ? '칭찬 기록을 지우고 쿠키 ' + l.delta + '개를 회수했어요' : '기록을 지웠어요');
+}
+
 /* ---------- 게시판 ---------- */
 
 function addPost() {
@@ -1208,6 +1224,9 @@ function renderParentLog() {
       const deltaCls = l.delta > 0 ? '-plus' : '-minus';
       const deltaLabel = l.delta > 0 ? ('+' + l.delta) : ('' + l.delta);
       const time = l.atMs ? timeOfDayLabel(l.atMs) : '';
+      const delBtn = l.delta > 0
+        ? `<button class="log-delete" data-action="delete-log" data-id="${l.id}" data-delta="${l.delta}" aria-label="삭제">✕</button>`
+        : '';
       return `
         <div class="log-row">
           <span class="log-tag ${kidCls}">${escapeHtml(nameOf(l.kid))}</span>
@@ -1216,6 +1235,7 @@ function renderParentLog() {
             ${time ? `<div class="log-time">${time}</div>` : ''}
           </div>
           <span class="log-delta ${deltaCls}">${deltaLabel}</span>
+          ${delBtn}
         </div>
       `;
     }).join('');
@@ -1461,6 +1481,16 @@ document.addEventListener('click', e => {
     case 'add-second-kid':
       addSecondKid();
       return;
+    case 'delete-log': {
+      const delta = Number(target.getAttribute('data-delta')) || 0;
+      const msg = delta > 0
+        ? '이 칭찬 기록을 지울까요?\n지급됐던 쿠키 ' + delta + '개도 함께 회수돼요.'
+        : '이 기록을 지울까요?';
+      if (confirm(msg)) {
+        deleteLogEntry(Number(target.getAttribute('data-id')));
+      }
+      return;
+    }
   }
 });
 

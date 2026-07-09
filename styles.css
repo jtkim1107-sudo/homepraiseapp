@@ -1003,6 +1003,20 @@ input {
 }
 .log-delta.-plus  { color: var(--success); }
 .log-delta.-minus { color: var(--second-deep); }
+.log-delete {
+  background: none;
+  border: none;
+  color: #CED4DA;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.log-delete:hover {
+  color: var(--danger);
+  background: #FDECEC;
+}
 
 /* ============================================================
    쪽지판 (부모 + 아이 공용)
