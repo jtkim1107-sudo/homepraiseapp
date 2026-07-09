@@ -39,6 +39,10 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
+  /* 페이지 자체는 스크롤 금지 — 스크롤은 .app-main 안에서만.
+     키보드가 열릴 때 화면이 통째로 밀려 하단 탭이 사라지는 것을 방지 */
+  overflow: hidden;
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -54,8 +58,9 @@ input {
 
 /* ---------- Stage / phone frame ---------- */
 .stage {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -75,10 +80,15 @@ input {
   box-shadow: 0 24px 60px rgba(30, 40, 90, 0.18);
 }
 @media (max-width: 480px) {
-  .stage { padding: 0; background: #fff; }
+  .stage {
+    position: fixed;
+    inset: 0;
+    padding: 0;
+    background: #fff;
+  }
   .phone {
     max-width: 100%;
-    height: 100dvh;
+    height: 100%;
     border-radius: 0;
     box-shadow: none;
   }

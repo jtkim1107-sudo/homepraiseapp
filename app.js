@@ -1392,6 +1392,23 @@ document.getElementById('settings-body').addEventListener('input', e => {
   state.settingsDraft = { ...state.settingsDraft, [id]: t.value };
 });
 
+/* ---------- 모바일 키보드 보정 ----------
+   iOS 사파리는 키보드가 열릴 때 화면 전체를 위로 밀어올리는데,
+   키보드가 닫힌 뒤에도 밀린 상태가 남아 하단 탭이 화면 밖에
+   걸리는 경우가 있다. 입력이 끝나면 화면 위치를 원래대로 되돌린다. */
+
+window.addEventListener('focusout', () => {
+  setTimeout(() => window.scrollTo(0, 0), 60);
+});
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    const el = document.activeElement;
+    const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    if (!typing) window.scrollTo(0, 0);
+  });
+}
+
 /* ============================================================
    Boot
    ============================================================ */
