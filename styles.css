@@ -1508,6 +1508,16 @@ input {
   font-weight: 700;
   font-size: 13px;
 }
+.btn-reset-device {
+  width: 100%;
+  padding: 11px;
+  border-radius: 12px;
+  border: 1.5px solid #FBD3D3;
+  background: #FDF1F1;
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 13px;
+}
 .settings-privacy {
   display: block;
   text-align: center;

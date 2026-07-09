@@ -19,18 +19,11 @@ const STORAGE_KEY = 'praise-app-v1';
 const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
 const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
 
-const LEGACY_FAMILY_KEY = 'fam_x7q2v9m4k8ptw3';
 const FAMILY_KEY_STORAGE = 'praise-app-family-key';
 
 let FAMILY_KEY = (function () {
   try {
-    const saved = localStorage.getItem(FAMILY_KEY_STORAGE);
-    if (saved) return saved;
-    // 마이그레이션: 이 업데이트 전부터 쓰던 기기는 기존 가족방을 그대로 사용
-    if (localStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(FAMILY_KEY_STORAGE, LEGACY_FAMILY_KEY);
-      return LEGACY_FAMILY_KEY;
-    }
+    return localStorage.getItem(FAMILY_KEY_STORAGE) || null;
   } catch (e) { /* localStorage 불가 → 온보딩으로 */ }
   return null;
 })();
@@ -795,6 +788,17 @@ function rotateFamilyCode() {
   } catch (e) {}
   render();
   celebrate('🔑', '새 초대 코드가 생겼어요!', '가족 기기들은 새 코드로 다시 들어와주세요');
+}
+
+/* 이 기기 초기화: 저장된 가족방 연결과 데이터를 지우고 온보딩부터 다시.
+   이 기기만 초기화되며, 가족방(DB)의 데이터는 건드리지 않는다. */
+function resetThisDevice() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(FAMILY_KEY_STORAGE);
+    localStorage.removeItem(NOTIFY_PREF_KEY);
+  } catch (e) {}
+  location.reload();
 }
 
 // 방이 닫혔음(코드 변경됨)을 감지했을 때: 새 코드 입력 화면으로
@@ -1764,8 +1768,14 @@ function renderSettings() {
       <div class="field-hint">부모님 기기: 아이가 "했어요!"를 누르면 알려드려요. 아이 기기: 칭찬 쿠키가 도착하면 알려줘요. 앱이 열려 있거나 최근에 사용 중일 때 동작해요.</div>
     </div>
   `;
+  const resetField = `
+    <div>
+      <button class="btn-reset-device" data-action="reset-device">🧹 이 기기 초기화 (처음부터 시작)</button>
+      <div class="field-hint">이 기기에서 가족방 연결을 끊고 첫 화면으로 돌아가요. 가족방의 데이터는 지워지지 않아요.</div>
+    </div>
+  `;
   const privacyLink = `<a class="settings-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>`;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + privacyLink;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + resetField + privacyLink;
 }
 
 function renderPinModal() {
@@ -1988,6 +1998,11 @@ document.addEventListener('click', e => {
       return;
     case 'setup-finish':
       finishSetup();
+      return;
+    case 'reset-device':
+      if (confirm('이 기기를 초기화할까요?\n가족방 연결이 끊기고 첫 화면으로 돌아가요.\n(가족방의 데이터는 지워지지 않아요)')) {
+        resetThisDevice();
+      }
       return;
   }
 });
