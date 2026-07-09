@@ -1,0 +1,17 @@
+{
+  "name": "우리집 칭찬가게",
+  "short_name": "칭찬가게",
+  "description": "가족 칭찬 쿠키 앱 — 약속 지키고 쿠키 모아 쿠키마켓에서 바꿔요",
+  "lang": "ko",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFE9C8",
+  "theme_color": "#7048E8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
