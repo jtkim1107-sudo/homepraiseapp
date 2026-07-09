@@ -405,12 +405,22 @@ function closeCelebration() {
   render();
 }
 
+// 아이가 "했어요!"를 누른 순간의 응원 — 누를 때마다 다른 문구
+const KID_DONE_CHEERS = [
+  { emoji: '💪', text: '우와, 해냈구나!' },
+  { emoji: '🌟', text: '반짝반짝 멋져요!' },
+  { emoji: '🎉', text: '정말 잘했어요!' },
+  { emoji: '🦄', text: '와, 최고예요!' },
+  { emoji: '🏆', text: '약속 지킴 챔피언!' },
+];
+
 function requestDone(missionId) {
   const m = state.missions.find(x => x.id === missionId);
   if (!m) return;
   m.state = 'pending';
   saveState();
-  showToast('엄마아빠한테 확인을 부탁했어요! 🙌');
+  const cheer = KID_DONE_CHEERS[Math.floor(Math.random() * KID_DONE_CHEERS.length)];
+  celebrate(cheer.emoji, cheer.text, '엄마아빠한테 확인을 부탁했어요 🙌');
 }
 
 function approveMission(missionId) {
