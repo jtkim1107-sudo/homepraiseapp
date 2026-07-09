@@ -22,6 +22,13 @@
           ".validate": "newData.isBoolean()"
         }
       }
+    },
+    "feedback": {
+      ".read": false,
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['text', 'atMs']) && newData.child('text').isString() && newData.child('text').val().length < 2100 && newData.child('atMs').isNumber()"
+      }
     }
   }
 }

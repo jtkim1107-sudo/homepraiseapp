@@ -952,6 +952,25 @@ function resetNames() {
   render();
 }
 
+/* ---------- 개발자에게 피드백 보내기 ----------
+   Firebase의 feedback 노드로 전송된다. (개발자만 콘솔에서 열람) */
+function sendFeedback() {
+  const text = ((state.settingsDraft || {}).feedback || '').trim();
+  if (!text) { showToast('내용을 적어주세요 ✏️'); return; }
+  if (!ensureFirebaseApp()) { showToast('인터넷 연결을 확인해주세요'); return; }
+  firebase.database().ref('feedback').push({
+    text: text.slice(0, 2000),
+    atMs: Date.now(),
+    family: FAMILY_KEY || '',
+  }).then(() => {
+    state.settingsDraft = { ...state.settingsDraft, feedback: '' };
+    render();
+    showToast('전달했어요! 소중한 의견 고마워요 💛');
+  }).catch(() => {
+    showToast('전송에 실패했어요. 잠시 후 다시 해주세요');
+  });
+}
+
 function addSecondKid() {
   if (activeKids().indexOf('second') >= 0) return;
   state.kidsEnabled = ['first', 'second'];
@@ -1552,7 +1571,8 @@ function renderParentMission() {
     <div class="sub-head">새 약속 보내기 📨</div>
     <div class="form-box">
       <div class="pill-row">${kidPills}</div>
-      <input class="text-input-wide" id="input-nm-text" placeholder="약속 내용 (예: 🧸 장난감 정리하기)" value="${escapeHtml(state.nmText || '')}" data-input="nm-text"/>
+      <div class="input-label">✏️ 어떤 약속인가요?</div>
+      <input class="text-input-wide" id="input-nm-text" placeholder="여기에 적어주세요 (예: 🧸 장난감 정리하기)" value="${escapeHtml(state.nmText || '')}" data-input="nm-text"/>
       <div class="form-row">
         <div style="display:flex;gap:6px;flex-wrap:wrap">${repeatPills}</div>
         <div style="display:flex;gap:6px">${starPicks}</div>
@@ -1612,7 +1632,8 @@ function renderParentRewards() {
     <div class="sub-head">새 보상 추가</div>
     <div class="form-box">
       <div class="emoji-grid">${emojiPicks}</div>
-      <input class="text-input-wide" id="input-nr-text" placeholder="보상 이름 (예: 치킨 시켜먹기)" value="${escapeHtml(state.nrText || '')}" data-input="nr-text"/>
+      <div class="input-label">✏️ 보상 이름</div>
+      <input class="text-input-wide" id="input-nr-text" placeholder="여기에 적어주세요 (예: 치킨 시켜먹기)" value="${escapeHtml(state.nrText || '')}" data-input="nr-text"/>
       <div class="price-stepper-row">
         <span class="price-label">쿠키 가격</span>
         <div class="price-stepper">
@@ -1821,6 +1842,14 @@ function renderSettings() {
       <div class="field-hint">부모님 기기: 아이가 "했어요!"를 누르면 알려드려요. 아이 기기: 칭찬 쿠키가 도착하면 알려줘요. 앱이 열려 있거나 최근에 사용 중일 때 동작해요.</div>
     </div>
   `;
+  const feedbackField = `
+    <div>
+      <div class="field-label">개발자에게 피드백 보내기 💬</div>
+      <textarea class="feedback-input" data-settings-id="feedback" rows="3"
+        placeholder="불편한 점, 바라는 기능을 자유롭게 적어주세요">${escapeHtml(draft.feedback || '')}</textarea>
+      <button class="btn-feedback" data-action="send-feedback">보내기 📨</button>
+    </div>
+  `;
   const resetField = `
     <div>
       <button class="btn-reset-device" data-action="reset-device">🧹 이 기기 초기화 (처음부터 시작)</button>
@@ -1828,7 +1857,7 @@ function renderSettings() {
     </div>
   `;
   const privacyLink = `<a class="settings-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>`;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + resetField + privacyLink;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + feedbackField + resetField + privacyLink;
 }
 
 function renderPinModal() {
@@ -2062,6 +2091,9 @@ document.addEventListener('click', e => {
       target.classList.remove('-poke');
       void target.offsetWidth; // 애니메이션 재시작 트릭
       target.classList.add('-poke');
+      return;
+    case 'send-feedback':
+      sendFeedback();
       return;
   }
 });
