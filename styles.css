@@ -262,6 +262,49 @@ input {
   line-height: 1.6;
   margin-top: 14px;
 }
+.onboard-steps {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--sub-3);
+  letter-spacing: 2px;
+}
+.onboard-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+  background: #fff;
+  border: 1.5px solid var(--line-2);
+  border-radius: 18px;
+  padding: 16px;
+}
+.onboard-guide-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.onboard-guide-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.onboard-privacy {
+  font-size: 11px;
+  color: var(--sub-3);
+  text-decoration: underline;
+  margin-top: 6px;
+}
 
 /* 설정 안 초대 코드 표시 */
 .family-code {
@@ -1407,6 +1450,25 @@ input {
   background: var(--star-bg);
   border-color: var(--star);
   color: var(--star-ink);
+}
+.btn-rotate-code {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line-2);
+  background: none;
+  color: var(--sub-2);
+  font-weight: 700;
+  font-size: 13px;
+}
+.settings-privacy {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: var(--sub-3);
+  text-decoration: underline;
+  margin-top: 4px;
 }
 .modal-actions {
   display: flex;

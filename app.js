@@ -238,6 +238,9 @@ state.pinInput = '';
 state.onboardMode = 'choose';
 state.onboardInput = '';
 state.onboardBusy = false;
+state.onboardSetup = false;
+state.onboardKidName = '';
+state.onboardPin = '';
 
 function loadState() {
   try {
@@ -333,47 +336,58 @@ function initCloud() {
     if (!ensureFirebaseApp()) return; // 로컬 전용 모드
     if (cloudRef) cloudRef.off();
     const db = firebase.database();
-    cloudRef = db.ref('families/' + FAMILY_KEY + '/fields');
+    const key = FAMILY_KEY;
+    cloudRef = db.ref('families/' + key + '/fields');
     lastSyncedJson = {};
 
-    cloudRef.once('value')
-      .then(snap => {
-        if (snap.exists()) {
-          // 새 형식 데이터 존재 → 먼저 반영 (내 오래된 로컬로 덮어쓰지 않도록)
-          if (applyRemoteFields(snap.val())) {
-            applyDailyReset(state);
-            saveLocal();
-            render();
-          }
-          return;
-        }
-        // 새 형식 없음 → 구 형식(state 한 덩어리)에서 한 번 이전
-        return db.ref('families/' + FAMILY_KEY + '/state').once('value').then(old => {
-          const remote = old.val();
-          if (!remote || !remote.data) return;
-          try {
-            const shared = JSON.parse(remote.data);
-            for (const k of SHARED_KEYS) {
-              if (shared[k] !== undefined) state[k] = shared[k];
+    // 0) 방이 닫혔는지(초대 코드가 바뀌었는지) 먼저 확인
+    db.ref('families/' + key + '/closed').once('value')
+      .then(snap => snap.val() === true)
+      .catch(() => false)
+      .then(isClosed => {
+        if (isClosed) { leaveClosedRoom(); return; }
+        if (FAMILY_KEY !== key) return; // 확인하는 사이 방이 바뀜
+
+        return cloudRef.once('value')
+          .then(snap => {
+            if (snap.exists()) {
+              // 새 형식 데이터 존재 → 먼저 반영 (내 오래된 로컬로 덮어쓰지 않도록)
+              if (applyRemoteFields(snap.val())) {
+                applyDailyReset(state);
+                saveLocal();
+                render();
+              }
+              return;
             }
-            applyDailyReset(state);
-            saveLocal();
-            render();
-          } catch (e) {}
-        });
-      })
-      .catch(() => {})
-      .then(() => {
-        cloudSave(); // 로컬 상태를 영역별로 업로드 (변경분만 — 이전/첫 업로드 포함)
-        cloudRef.on('value', snap => {
-          if (applyRemoteFields(snap.val())) {
-            applyDailyReset(state);
-            saveLocal();
-            render();
-            notifyNewPraise();
-            notifyNewPending();
-          }
-        });
+            // 새 형식 없음 → 구 형식(state 한 덩어리)에서 한 번 이전
+            return db.ref('families/' + key + '/state').once('value').then(old => {
+              const remote = old.val();
+              if (!remote || !remote.data) return;
+              try {
+                const shared = JSON.parse(remote.data);
+                for (const k of SHARED_KEYS) {
+                  if (shared[k] !== undefined) state[k] = shared[k];
+                }
+                applyDailyReset(state);
+                saveLocal();
+                render();
+              } catch (e) {}
+            });
+          })
+          .catch(() => {})
+          .then(() => {
+            if (FAMILY_KEY !== key) return;
+            cloudSave(); // 로컬 상태를 영역별로 업로드 (변경분만 — 이전/첫 업로드 포함)
+            cloudRef.on('value', snap => {
+              if (applyRemoteFields(snap.val())) {
+                applyDailyReset(state);
+                saveLocal();
+                render();
+                notifyNewPraise();
+                notifyNewPending();
+              }
+            });
+          });
       });
   } catch (e) { /* 연결 실패 → 로컬 전용 모드로 계속 */ }
 }
@@ -751,9 +765,76 @@ function adoptFamilyKey(code) {
 }
 
 function createFamilyRoom() {
+  state.onboardSetup = true;
+  state.onboardMode = 'setup-name';
+  state.onboardKidName = '';
+  state.onboardPin = '';
   const code = makeRoomCode();
-  adoptFamilyKey(code);
-  celebrate('🏠', '우리 가족방이 생겼어요!', '초대 코드는 설정 ⚙️에서 볼 수 있어요');
+  adoptFamilyKey(code); // 방 생성 → 이어서 첫 설정 마법사로
+}
+
+/* ----- 첫 설정 마법사 (새 가족방을 만든 직후) ----- */
+
+function setupSaveName() {
+  const name = (state.onboardKidName || '').trim();
+  if (name) state.userNames.first = name;
+  saveState();
+  state.onboardMode = 'setup-pin';
+  render();
+}
+
+function setupSavePin() {
+  const pin = (state.onboardPin || '').trim();
+  if (pin && !/^\d{4}$/.test(pin)) {
+    showToast('비밀번호는 숫자 4자리로 해주세요');
+    return;
+  }
+  if (pin) state.pin = pin;
+  saveState();
+  state.onboardMode = 'setup-guide';
+  render();
+}
+
+function finishSetup() {
+  state.onboardSetup = false;
+  state.onboardMode = 'choose';
+  render();
+  celebrate('🎉', '우리 가족방 완성!', nameOf('first') + '(이)랑 같이 시작해보세요');
+}
+
+function inOnboarding() {
+  return !FAMILY_KEY || state.onboardSetup;
+}
+
+/* 초대 코드 변경: 새 방으로 데이터를 옮기고 옛 방은 닫는다.
+   코드가 유출됐을 때 잠그는 용도. 다른 가족 기기는
+   옛 방이 닫힌 것을 감지하면 새 코드 입력 화면으로 안내된다. */
+function rotateFamilyCode() {
+  const oldKey = FAMILY_KEY;
+  const newCode = makeRoomCode();
+  adoptFamilyKey(newCode); // 새 방 연결 → 이 기기의 데이터가 전부 업로드됨
+  try {
+    if (ensureFirebaseApp()) {
+      const db = firebase.database();
+      const clear = {};
+      for (const k of SHARED_KEYS) clear[k] = null;
+      db.ref('families/' + oldKey + '/fields').update(clear).catch(() => {});
+      db.ref('families/' + oldKey + '/state').remove().catch(() => {});
+      db.ref('families/' + oldKey + '/closed').set(true).catch(() => {});
+    }
+  } catch (e) {}
+  render();
+  celebrate('🔑', '새 초대 코드가 생겼어요!', '가족 기기들은 새 코드로 다시 들어와주세요');
+}
+
+// 방이 닫혔음(코드 변경됨)을 감지했을 때: 새 코드 입력 화면으로
+function leaveClosedRoom() {
+  try { localStorage.removeItem(FAMILY_KEY_STORAGE); } catch (e) {}
+  FAMILY_KEY = null;
+  if (cloudRef) { cloudRef.off(); cloudRef = null; }
+  state.onboardMode = 'join';
+  render();
+  showToast('가족방 초대 코드가 바뀌었어요. 새 코드로 들어와주세요 🔑');
 }
 
 function joinFamilyRoom() {
@@ -912,7 +993,7 @@ function addSecondKid() {
 
 function renderHeader() {
   const header = document.getElementById('app-header');
-  if (!FAMILY_KEY) {
+  if (inOnboarding()) {
     header.className = 'app-header -parent';
     header.innerHTML = `
       <div class="header-top">
@@ -948,7 +1029,7 @@ function renderHeader() {
 
 function renderTabs() {
   const nav = document.getElementById('app-tabs');
-  if (!FAMILY_KEY) {
+  if (inOnboarding()) {
     nav.innerHTML = '';
     return;
   }
@@ -966,7 +1047,7 @@ function renderTabs() {
 
 function renderMain() {
   const main = document.getElementById('app-main');
-  if (!FAMILY_KEY) {
+  if (inOnboarding()) {
     main.className = 'app-main';
     main.innerHTML = renderOnboarding();
     wireInputs();
@@ -999,6 +1080,54 @@ function renderMain() {
 /* ---------- 가족방 온보딩 화면 ---------- */
 
 function renderOnboarding() {
+  if (state.onboardMode === 'setup-name') {
+    return `
+      <div class="onboard">
+        <div class="onboard-steps">1 / 3</div>
+        <div class="onboard-emoji">🧒</div>
+        <div class="onboard-title">아이 이름 정하기</div>
+        <div class="onboard-sub">앱에서 부를 이름이에요. 애칭도 좋아요!</div>
+        <input class="onboard-input" id="input-onboard-kid" placeholder="예: 이레"
+          autocomplete="off" value="${escapeHtml(state.onboardKidName || '')}" data-input="onboard-kid-name"/>
+        <button class="onboard-btn -primary" data-action="setup-name-next">다음 →</button>
+        <div class="onboard-note">둘째는 나중에 설정 ⚙️에서 추가할 수 있어요</div>
+      </div>
+    `;
+  }
+  if (state.onboardMode === 'setup-pin') {
+    return `
+      <div class="onboard">
+        <div class="onboard-steps">2 / 3</div>
+        <div class="onboard-emoji">🔒</div>
+        <div class="onboard-title">부모님 비밀번호</div>
+        <div class="onboard-sub">부모님 화면(쿠키 주기·보상 관리)을 잠그는<br>숫자 4자리예요</div>
+        <input class="onboard-input" id="input-onboard-pin" placeholder="숫자 4자리"
+          inputmode="numeric" maxlength="4" autocomplete="off"
+          value="${escapeHtml(state.onboardPin || '')}" data-input="onboard-pin"/>
+        <button class="onboard-btn -primary" data-action="setup-pin-next">다음 →</button>
+        <div class="onboard-note">건너뛰면 기본값 0000이에요. 나중에 설정에서 바꿀 수 있어요</div>
+      </div>
+    `;
+  }
+  if (state.onboardMode === 'setup-guide') {
+    return `
+      <div class="onboard">
+        <div class="onboard-steps">3 / 3</div>
+        <div class="onboard-emoji">📖</div>
+        <div class="onboard-title">이렇게 써요</div>
+        <div class="onboard-guide">
+          <div class="onboard-guide-row"><span class="onboard-guide-num">1</span> 부모님이 약속을 보내요 📨</div>
+          <div class="onboard-guide-row"><span class="onboard-guide-num">2</span> ${escapeHtml(nameOf('first'))}가 지키고 "했어요!" 💪</div>
+          <div class="onboard-guide-row"><span class="onboard-guide-num">3</span> 확인하면 쿠키 지급! 🍪</div>
+          <div class="onboard-guide-row"><span class="onboard-guide-num">4</span> 모은 쿠키로 쿠키마켓에서 보상 교환 🎁</div>
+        </div>
+        <div class="onboard-sub" style="margin:14px 0 4px">가족 폰·태블릿에서는 이 코드로 들어오세요</div>
+        <div class="family-code">${escapeHtml(FAMILY_KEY || '')}</div>
+        <button class="onboard-btn -primary" data-action="setup-finish">시작하기! 🍪</button>
+        <div class="onboard-note">초대 코드는 설정 ⚙️에서 언제든 다시 볼 수 있어요</div>
+      </div>
+    `;
+  }
   if (state.onboardMode === 'join') {
     return `
       <div class="onboard">
@@ -1023,6 +1152,7 @@ function renderOnboarding() {
       <button class="onboard-btn -primary" data-action="onboard-create">🏠 새 가족방 만들기</button>
       <button class="onboard-btn -secondary" data-action="onboard-join-mode">🔑 초대 코드로 들어가기</button>
       <div class="onboard-note">가족방을 만들면 초대 코드가 생겨요.<br>가족 기기에서 그 코드로 들어오면 실시간으로 함께 쓸 수 있어요.</div>
+      <a class="onboard-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>
     </div>
   `;
 }
@@ -1614,6 +1744,7 @@ function renderSettings() {
       <div class="field-label">가족방 초대 코드 🔑</div>
       <div class="family-code">${escapeHtml(FAMILY_KEY || '')}</div>
       <div class="field-hint">다른 기기에서 "초대 코드로 들어가기"에 이 코드를 입력하면 같은 가족방에 연결돼요. 가족 외에는 알려주지 마세요!</div>
+      <button class="btn-rotate-code" data-action="rotate-code">🔄 초대 코드 바꾸기 (유출됐을 때)</button>
     </div>
   `;
   const notifyOn = notificationsOn();
@@ -1626,7 +1757,8 @@ function renderSettings() {
       <div class="field-hint">부모님 기기: 아이가 "했어요!"를 누르면 알려드려요. 아이 기기: 칭찬 쿠키가 도착하면 알려줘요. 앱이 열려 있거나 최근에 사용 중일 때 동작해요.</div>
     </div>
   `;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField;
+  const privacyLink = `<a class="settings-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>`;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + privacyLink;
 }
 
 function renderPinModal() {
@@ -1647,20 +1779,24 @@ function wireInputs() {
   document.querySelectorAll('[data-input]').forEach(input => {
     input.addEventListener('input', e => {
       const key = e.target.getAttribute('data-input');
-      if (key === 'bonus-text')   state.bonusText    = e.target.value;
-      if (key === 'nm-text')      state.nmText       = e.target.value;
-      if (key === 'nr-text')      state.nrText       = e.target.value;
-      if (key === 'talk-text')    state.talkText     = e.target.value;
-      if (key === 'onboard-code') state.onboardInput = e.target.value;
+      if (key === 'bonus-text')       state.bonusText      = e.target.value;
+      if (key === 'nm-text')          state.nmText         = e.target.value;
+      if (key === 'nr-text')          state.nrText         = e.target.value;
+      if (key === 'talk-text')        state.talkText       = e.target.value;
+      if (key === 'onboard-code')     state.onboardInput   = e.target.value;
+      if (key === 'onboard-kid-name') state.onboardKidName = e.target.value;
+      if (key === 'onboard-pin')      state.onboardPin     = e.target.value;
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const key = e.target.getAttribute('data-input');
-        if (key === 'bonus-text')   giveBonus();
-        if (key === 'nm-text')      addMission();
-        if (key === 'nr-text')      addReward();
-        if (key === 'talk-text')    addPost();
-        if (key === 'onboard-code') joinFamilyRoom();
+        if (key === 'bonus-text')       giveBonus();
+        if (key === 'nm-text')          addMission();
+        if (key === 'nr-text')          addReward();
+        if (key === 'talk-text')        addPost();
+        if (key === 'onboard-code')     joinFamilyRoom();
+        if (key === 'onboard-kid-name') setupSaveName();
+        if (key === 'onboard-pin')      setupSavePin();
       }
     });
   });
@@ -1711,6 +1847,12 @@ document.addEventListener('click', e => {
       switchTab(target.getAttribute('data-tab'));
       return;
     case 'open-settings':
+      // 설정에는 비밀번호 변경·초대 코드가 있어서 부모님만 열 수 있다
+      if (!meIsParent()) {
+        showToast('설정은 부모님만 열 수 있어요 🔒');
+        openPinModal();
+        return;
+      }
       openSettings();
       return;
     case 'close-settings':
@@ -1825,6 +1967,20 @@ document.addEventListener('click', e => {
       return;
     case 'toggle-notify':
       toggleNotifications();
+      return;
+    case 'rotate-code':
+      if (confirm('초대 코드를 새로 만들까요?\n다른 가족 기기들은 새 코드로 다시 들어와야 해요.')) {
+        rotateFamilyCode();
+      }
+      return;
+    case 'setup-name-next':
+      setupSaveName();
+      return;
+    case 'setup-pin-next':
+      setupSavePin();
+      return;
+    case 'setup-finish':
+      finishSetup();
       return;
   }
 });
