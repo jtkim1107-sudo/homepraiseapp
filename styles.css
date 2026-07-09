@@ -362,7 +362,7 @@ input {
    ============================================================ */
 .board-head {
   border-radius: 28px;
-  padding: 26px 22px 24px;
+  padding: 20px 20px 18px;
   text-align: center;
 }
 .board-head.-first  { background: var(--first-bg);  box-shadow: 0 6px 22px rgba(112,72,232,0.1); }
@@ -375,9 +375,9 @@ input {
 .board-head.-second .board-name { color: var(--second); }
 .board-count {
   font-family: 'Jua', sans-serif;
-  font-size: 66px;
+  font-size: 54px;
   line-height: 1;
-  margin: 6px 0;
+  margin: 4px 0 0;
 }
 .board-head.-first  .board-count { color: var(--first); }
 .board-head.-second .board-count { color: var(--second); }
@@ -406,10 +406,18 @@ input {
    ============================================================ */
 .jar {
   position: relative;
-  width: 82%;
-  max-width: 280px;
-  margin: 20px auto 6px;
+  width: 62%;
+  max-width: 205px;
+  margin: 14px auto 2px;
   aspect-ratio: 200 / 280;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.jar.-poke {
+  animation: jarWobble 500ms ease;
+}
+.jar.-poke .jar-stamp {
+  animation: jarJiggle 500ms ease;
 }
 .jar-svg {
   position: absolute;
@@ -417,6 +425,19 @@ input {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+.jar-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.jar-hint {
+  font-size: 11px;
+  color: var(--sub-3);
+  font-weight: 700;
+  margin-top: 8px;
 }
 .jar-slots {
   position: absolute;
@@ -1627,10 +1648,11 @@ input {
 
 /* ============================================================
    Responsive — tablet (kids share) vs phone (parents each own)
-   ≥ 600px = 태블릿 레이아웃 (아이 화면 스케일업, 부모 화면 폭 제한)
+   ≥ 600px + 터치 기기 = 태블릿 레이아웃 (아이 화면 스케일업)
+   컴퓨터(마우스)에서는 폰 프레임 그대로 가운데에 보여준다
    ============================================================ */
 
-@media (min-width: 600px) {
+@media (min-width: 600px) and (pointer: coarse) {
   /* Frame: expand to fill the tablet */
   .stage {
     padding: 0;
@@ -1688,8 +1710,8 @@ input {
   .board-next { font-size: 20px; margin-top: 16px; }
 
   .jar {
-    max-width: 380px;
-    margin-top: 28px;
+    max-width: 290px;
+    margin-top: 18px;
   }
 
   /* Kid mission — 2-column, larger text */
@@ -1761,18 +1783,32 @@ input {
 }
 
 /* Larger tablet — a bit more room for kid grids */
-@media (min-width: 900px) {
+@media (min-width: 900px) and (pointer: coarse) {
   .app-main.-first,
   .app-main.-second {
     padding: 40px 56px 48px;
   }
-  .board-count { font-size: 112px; }
-  .jar { max-width: 440px; }
+  .board-count { font-size: 88px; }
+  .jar { max-width: 330px; }
 }
 
 /* ============================================================
    Animations
    ============================================================ */
+@keyframes jarWobble {
+  0%   { transform: rotate(0); }
+  20%  { transform: rotate(-3deg) scale(1.02); }
+  45%  { transform: rotate(3deg); }
+  70%  { transform: rotate(-1.5deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes jarJiggle {
+  0%   { transform: translateY(0) rotate(0); }
+  25%  { transform: translateY(-5px) rotate(-6deg); }
+  50%  { transform: translateY(2px) rotate(5deg); }
+  75%  { transform: translateY(-2px) rotate(-3deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
 @keyframes stampIn {
   0%   { transform: scale(1.9) rotate(-14deg); opacity: 0; }
   55%  { transform: scale(0.85) rotate(4deg); opacity: 1; }

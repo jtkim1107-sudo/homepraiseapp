@@ -112,9 +112,8 @@ const KID_TABS = [
 /* ---------- Utilities ---------- */
 
 function todayKey() {
-  const now = new Date();
-  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
-  return kst.getUTCFullYear() + '-' + String(kst.getUTCMonth() + 1).padStart(2, '0') + '-' + String(kst.getUTCDate()).padStart(2, '0');
+  // 기기의 현지 날짜 기준 — 자정(00:00)이 지나면 새로운 하루
+  return dayKeyFromMs(Date.now());
 }
 
 function dayKeyFromMs(ms) {
@@ -1192,6 +1191,12 @@ function renderKidBoard() {
   const themeDeep  = kid === 'first' ? '#5F3DC4' : '#E8590C';
   const themeBg    = kid === 'first' ? '#F3F0FF' : '#FFF4E6';
 
+  // 쿠키통 표정 — 채울수록 행복해진다 (0: 쿨쿨 → 미소 → 신남 → 목표 달성: 반짝)
+  const ratio = state.rewards.length > 0 && !nextReward
+    ? 1
+    : Math.min(1, goal > 0 ? count / goal : 0);
+  const faceSvg = jarFaceSvg(ratio, themeDeep);
+
   const jarSvg = `
     <svg class="jar-svg" viewBox="0 0 200 280" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <defs>
@@ -1260,13 +1265,58 @@ function renderKidBoard() {
     <div class="board-head ${themeCls}">
       <div class="board-name">${escapeHtml(nameOf(kid))}의 쿠키</div>
       <div class="board-count">${count}</div>
-      <div class="jar">
+      <div class="jar" data-action="poke-jar">
         ${jarSvg}
         <div class="jar-slots" style="--rows:${rows}">${slots.join('')}</div>
+        ${faceSvg}
       </div>
+      ${count > 0 ? '<div class="jar-hint">쿠키통을 콕 눌러봐! 👆</div>' : ''}
       ${nextLine}
     </div>
     ${praiseBlock}
+  `;
+}
+
+/* 쿠키통 표정 (유리에 그려진 마스코트 얼굴) */
+function jarFaceSvg(ratio, deep) {
+  const ink = '#3A1E10';
+  let eyes, mouth, extra = '';
+  if (ratio >= 1) {
+    // 목표 달성 — 반짝이 눈 + 함박웃음
+    const star = (cx, cy) => `<path d="M ${cx} ${cy - 11} C ${cx + 2} ${cy - 3}, ${cx + 3} ${cy - 2}, ${cx + 11} ${cy}
+      C ${cx + 3} ${cy + 2}, ${cx + 2} ${cy + 3}, ${cx} ${cy + 11}
+      C ${cx - 2} ${cy + 3}, ${cx - 3} ${cy + 2}, ${cx - 11} ${cy}
+      C ${cx - 3} ${cy - 2}, ${cx - 2} ${cy - 3}, ${cx} ${cy - 11} Z" fill="#FFD43B" stroke="#B08900" stroke-width="1.5"/>`;
+    eyes = star(75, 114) + star(125, 114);
+    mouth = `<path d="M 80 130 Q 100 158 120 130 Z" fill="${ink}"/>
+             <ellipse cx="100" cy="142" rx="9" ry="5" fill="#FF8FA3"/>`;
+  } else if (ratio >= 0.6) {
+    // 거의 다 찼다 — 신난 눈웃음
+    eyes = `<path d="M 66 118 Q 75 106 84 118" stroke="${ink}" stroke-width="5.5" stroke-linecap="round" fill="none"/>
+            <path d="M 116 118 Q 125 106 134 118" stroke="${ink}" stroke-width="5.5" stroke-linecap="round" fill="none"/>`;
+    mouth = `<path d="M 82 130 Q 100 152 118 130 Z" fill="${ink}"/>`;
+  } else if (ratio > 0) {
+    // 채우는 중 — 방긋
+    eyes = `<circle cx="75" cy="114" r="5.5" fill="${ink}"/><circle cx="125" cy="114" r="5.5" fill="${ink}"/>
+            <circle cx="77" cy="112" r="1.8" fill="#fff"/><circle cx="127" cy="112" r="1.8" fill="#fff"/>`;
+    mouth = `<path d="M 84 132 Q 100 146 116 132" stroke="${ink}" stroke-width="6" stroke-linecap="round" fill="none"/>`;
+  } else {
+    // 텅 빔 — 쿨쿨
+    eyes = `<path d="M 66 116 Q 75 121 84 116" stroke="${ink}" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M 116 116 Q 125 121 134 116" stroke="${ink}" stroke-width="5" stroke-linecap="round" fill="none"/>`;
+    mouth = `<circle cx="100" cy="139" r="5" fill="none" stroke="${ink}" stroke-width="4"/>`;
+    extra = `<text x="146" y="92" font-size="17" font-family="sans-serif" fill="${ink}" opacity="0.55">z</text>
+             <text x="158" y="76" font-size="13" font-family="sans-serif" fill="${ink}" opacity="0.4">z</text>`;
+  }
+  return `
+    <svg class="jar-face" viewBox="0 0 200 280" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <ellipse cx="100" cy="124" rx="45" ry="37" fill="rgba(255,255,255,0.55)"/>
+      ${eyes}
+      ${mouth}
+      <ellipse cx="63" cy="134" rx="9" ry="6" fill="${deep}" opacity="0.28"/>
+      <ellipse cx="137" cy="134" rx="9" ry="6" fill="${deep}" opacity="0.28"/>
+      ${extra}
+    </svg>
   `;
 }
 
@@ -2009,6 +2059,12 @@ document.addEventListener('click', e => {
         resetThisDevice();
       }
       return;
+    case 'poke-jar':
+      // 쿠키통 콕 찌르기 — 쿠키들이 흔들흔들
+      target.classList.remove('-poke');
+      void target.offsetWidth; // 애니메이션 재시작 트릭
+      target.classList.add('-poke');
+      return;
   }
 });
 
@@ -2046,6 +2102,26 @@ if ('serviceWorker' in navigator &&
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
+/* ---------- 자정 넘김 감지 ----------
+   앱을 켜둔 채 자정이 지나면 매일 약속을 그 자리에서 리셋한다.
+   (기존에는 앱을 새로 열 때만 리셋됐음) */
+
+let lastSeenDay = todayKey();
+
+function checkDayRollover() {
+  const t = todayKey();
+  if (t === lastSeenDay) return;
+  lastSeenDay = t;
+  applyDailyReset(state);
+  saveState(); // 리셋 결과를 가족 기기에도 전파
+  render();
+}
+
+setInterval(checkDayRollover, 30 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) checkDayRollover(); // 백그라운드에서 돌아왔을 때 즉시 확인
+});
 
 /* ============================================================
    Boot
