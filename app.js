@@ -113,6 +113,18 @@ const PARENT_TABS = [
   { key: 'log',     label: '기록',   icon: '📋' },
 ];
 
+// 온보딩에서 눌러 담는 추천 약속/보상
+const STARTER_MISSIONS = [
+  '🪥 양치 스스로 하기', '📚 숙제 다 하기', '🧸 장난감 정리하기',
+  '📖 책 20분 읽기', '🛏️ 이불 정리하기', '🥦 반찬 골고루 먹기',
+];
+const STARTER_REWARDS = [
+  { emoji: '🍦', text: '아이스크림', price: 10 },
+  { emoji: '📺', text: '만화 30분 더 보기', price: 15 },
+  { emoji: '🎮', text: '게임 30분', price: 20 },
+  { emoji: '🎡', text: '주말 나들이', price: 50 },
+];
+
 const KID_TABS = [
   { key: 'board',   label: '내 쿠키', icon: '🍪' },
   { key: 'mission', label: '약속',    icon: '💪' },
@@ -211,6 +223,8 @@ state.onboardSetup = false;
 state.onboardKidName = '';
 state.onboardPin = '';
 state.onboardCode = '';
+state.onboardPickM = [0, 1, 2];
+state.onboardPickR = [0, 1];
 
 function loadState() {
   try {
@@ -739,6 +753,8 @@ function createFamilyRoom() {
   state.onboardMode = 'setup-name';
   state.onboardKidName = '';
   state.onboardPin = '';
+  state.onboardPickM = [0, 1, 2];
+  state.onboardPickR = [0, 1];
   state.onboardCode = makeRoomCode(); // 코드만 미리 만들어두고,
   render();                           // 방(DB)은 마법사를 끝냈을 때 생성한다
 }
@@ -761,6 +777,21 @@ function setupSavePin() {
     return;
   }
   if (pin) state.pin = pin;
+  state.onboardMode = 'setup-picks';
+  render();
+}
+
+function setupApplyPicks() {
+  // 고른 추천 약속/보상을 첫째 앞으로 담아준다
+  const today = todayKey();
+  state.missions = state.onboardPickM.map((i, idx) => ({
+    id: newId() + idx, kid: 'first', text: STARTER_MISSIONS[i],
+    state: 'todo', by: 'parent', stars: 1, repeat: true, lastReset: today,
+  }));
+  state.rewards = state.onboardPickR.map((i, idx) => {
+    const r = STARTER_REWARDS[i];
+    return { id: newId() + 100 + idx, emoji: r.emoji, text: r.text, price: r.price, by: 'parent' };
+  });
   state.onboardMode = 'setup-guide';
   render();
 }
@@ -982,6 +1013,15 @@ function sendFeedback() {
   });
 }
 
+function removeKid(k) {
+  if (k === 'first') return; // 첫째는 고정
+  state.kidsEnabled = activeKids().filter(x => x !== k);
+  if (state.me === k) { state.me = 'parent'; state.tab = 'board'; }
+  saveState();
+  render();
+  showToast(nameOf(k) + ' 아이를 목록에서 뺐어요. 다시 추가하면 그대로 돌아와요');
+}
+
 function addNextKid() {
   const enabled = activeKids();
   const next = KIDS.find(k => enabled.indexOf(k) < 0);
@@ -1102,7 +1142,7 @@ function renderOnboarding() {
   if (state.onboardMode === 'setup-name') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">1 / 3</div>
+        <div class="onboard-steps">1 / 4</div>
         <div class="onboard-emoji">🧒</div>
         <div class="onboard-title">아이 이름 정하기</div>
         <div class="onboard-sub">앱에서 부를 이름이에요. 애칭도 좋아요!</div>
@@ -1116,7 +1156,7 @@ function renderOnboarding() {
   if (state.onboardMode === 'setup-pin') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">2 / 3</div>
+        <div class="onboard-steps">2 / 4</div>
         <div class="onboard-emoji">🔒</div>
         <div class="onboard-title">부모님 비밀번호</div>
         <div class="onboard-sub">부모님 화면(쿠키 주기·보상 관리)을 잠그는<br>숫자 4자리예요</div>
@@ -1128,10 +1168,34 @@ function renderOnboarding() {
       </div>
     `;
   }
+  if (state.onboardMode === 'setup-picks') {
+    const kidName = (state.onboardKidName || '').trim() || DEFAULT_NAMES.first;
+    const mChips = STARTER_MISSIONS.map((t, i) => {
+      const on = state.onboardPickM.indexOf(i) >= 0;
+      return `<button class="pick-chip ${on ? '-on' : ''}" data-action="pick-mission" data-i="${i}">${on ? '✅ ' : ''}${escapeHtml(t)}</button>`;
+    }).join('');
+    const rChips = STARTER_REWARDS.map((r, i) => {
+      const on = state.onboardPickR.indexOf(i) >= 0;
+      return `<button class="pick-chip ${on ? '-on' : ''}" data-action="pick-reward" data-i="${i}">${on ? '✅ ' : ''}${r.emoji} ${escapeHtml(r.text)} · 🍪${r.price}</button>`;
+    }).join('');
+    return `
+      <div class="onboard">
+        <div class="onboard-steps">3 / 4</div>
+        <div class="onboard-emoji">🛒</div>
+        <div class="onboard-title">눌러서 담아보세요</div>
+        <div class="onboard-sub">${escapeHtml(kidName)}의 첫 약속과 보상이에요.<br>나중에 얼마든지 바꿀 수 있어요</div>
+        <div class="pick-group-label">매일 약속 💪</div>
+        <div class="pick-grid">${mChips}</div>
+        <div class="pick-group-label">쿠키마켓 보상 🎁</div>
+        <div class="pick-grid">${rChips}</div>
+        <button class="onboard-btn -primary" data-action="setup-picks-next">다음 →</button>
+      </div>
+    `;
+  }
   if (state.onboardMode === 'setup-guide') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">3 / 3</div>
+        <div class="onboard-steps">4 / 4</div>
         <div class="onboard-emoji">📖</div>
         <div class="onboard-title">이렇게 써요</div>
         <div class="onboard-guide">
@@ -1821,12 +1885,18 @@ function renderSettings() {
   const enabledKids = activeKids();
   const fieldDefs = [{ id: 'parent', label: '부모님 표시 이름' }]
     .concat(enabledKids.map(k => ({ id: k, label: DEFAULT_NAMES[k] + ' 이름' })));
-  const fields = fieldDefs.map(f => `
+  const fields = fieldDefs.map(f => {
+    const removable = f.id !== 'parent' && f.id !== 'first';
+    return `
     <div>
-      <div class="field-label">${f.label}</div>
+      <div class="field-label-row">
+        <span class="field-label" style="margin-bottom:0">${f.label}</span>
+        ${removable ? `<button class="kid-remove" data-action="remove-kid" data-kid="${f.id}">빼기 ✕</button>` : ''}
+      </div>
       <input class="field-input" data-settings-id="${f.id}" placeholder="${DEFAULT_NAMES[f.id]}" value="${escapeHtml(draft[f.id] || '')}"/>
     </div>
-  `).join('');
+  `;
+  }).join('');
   const pinField = `
     <div>
       <div class="field-label">부모님 비밀번호 (숫자 4자리)</div>
@@ -1917,6 +1987,11 @@ function wireInputs() {
 /* ---------- Top-level render ---------- */
 
 function render() {
+  // 다른 기기에서 이 아이가 목록에서 빠졌으면 첫째 화면으로
+  if (FAMILY_KEY && !state.onboardSetup && !isParent(state.me) && activeKids().indexOf(state.me) < 0) {
+    state.me = activeKids()[0] || 'parent';
+    state.tab = 'board';
+  }
   renderHeader();
   renderTabs();
   renderMain();
@@ -2094,6 +2169,30 @@ document.addEventListener('click', e => {
     case 'setup-finish':
       finishSetup();
       return;
+    case 'pick-mission': {
+      const i = Number(target.getAttribute('data-i'));
+      const at = state.onboardPickM.indexOf(i);
+      if (at >= 0) state.onboardPickM.splice(at, 1); else state.onboardPickM.push(i);
+      render();
+      return;
+    }
+    case 'pick-reward': {
+      const i = Number(target.getAttribute('data-i'));
+      const at = state.onboardPickR.indexOf(i);
+      if (at >= 0) state.onboardPickR.splice(at, 1); else state.onboardPickR.push(i);
+      render();
+      return;
+    }
+    case 'setup-picks-next':
+      setupApplyPicks();
+      return;
+    case 'remove-kid': {
+      const k = target.getAttribute('data-kid');
+      if (confirm(nameOf(k) + ' 아이를 목록에서 뺄까요?\n쿠키와 기록은 보관되고, 다시 추가하면 그대로 돌아와요.')) {
+        removeKid(k);
+      }
+      return;
+    }
     case 'reset-device':
       if (confirm('이 기기를 초기화할까요?\n가족방 연결이 끊기고 첫 화면으로 돌아가요.\n(가족방의 데이터는 지워지지 않아요)')) {
         resetThisDevice();

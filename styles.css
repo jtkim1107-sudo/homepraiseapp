@@ -379,6 +379,36 @@ input {
   justify-content: center;
   flex-shrink: 0;
 }
+/* 온보딩 — 추천 약속/보상 담기 */
+.pick-group-label {
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  color: var(--sub);
+  margin: 8px 0 2px;
+  text-align: left;
+}
+.pick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-start;
+}
+.pick-chip {
+  border: 1.5px solid var(--line-2);
+  background: #fff;
+  color: var(--sub);
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+.pick-chip.-on {
+  background: var(--star-bg);
+  border-color: var(--star);
+  color: #5C4400;
+}
+
 .onboard-privacy {
   font-size: 11px;
   color: var(--sub-3);
@@ -1583,6 +1613,22 @@ input {
   color: var(--sub);
   margin-bottom: 4px;
 }
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.kid-remove {
+  background: none;
+  border: none;
+  color: #C3C8D3;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 7px;
+}
+.kid-remove:hover { color: var(--danger); background: #FDECEC; }
 .field-input {
   width: 100%;
   border: 1.5px solid var(--line-2);
