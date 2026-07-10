@@ -124,8 +124,8 @@ const STARTER_REWARDS = [
 ];
 
 const KID_TABS = [
-  { key: 'board',   label: '내 쿠키', icon: '🍪' },
   { key: 'mission', label: '약속',    icon: '💪' },
+  { key: 'board',   label: '내 쿠키', icon: '🍪' },
 ];
 
 /* ---------- Utilities ---------- */
@@ -535,7 +535,7 @@ function activeKids()       { return KIDS.filter(k => (state.kidsEnabled || ['fi
 
 function switchUser(id) {
   state.me = id;
-  state.tab = isParent(id) ? 'mission' : 'board';
+  state.tab = 'mission'; // 부모·아이 모두 약속 탭부터
   saveState();
   render();
 }
@@ -1875,7 +1875,7 @@ function render() {
   // 다른 기기에서 이 아이가 목록에서 빠졌으면 첫째 화면으로
   if (FAMILY_KEY && !state.onboardSetup && !isParent(state.me) && activeKids().indexOf(state.me) < 0) {
     state.me = activeKids()[0] || 'parent';
-    state.tab = 'board';
+    state.tab = 'mission';
   }
   renderHeader();
   renderTabs();
