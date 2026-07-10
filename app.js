@@ -106,11 +106,9 @@ const REWARD_EMOJIS = ['🍦','🍩','🍕','🍔','🍫','🍬','🍭','🍪','
 const CONFETTI_CHARS = ['🎉','✨','⭐','💫','🌈','🎊','💛','💜','🧡','💖'];
 
 const PARENT_TABS = [
-  { key: 'board',   label: '홈',     icon: '🏠' },
-  { key: 'mission', label: '약속',   icon: '📝' },
-  { key: 'rewards', label: '마켓',   icon: '🎁' },
-  { key: 'talk',    label: '게시판', icon: '📌' },
-  { key: 'log',     label: '기록',   icon: '📋' },
+  { key: 'mission', label: '약속',     icon: '📝' },
+  { key: 'rewards', label: '보상설정', icon: '🎁' },
+  { key: 'log',     label: '기록',     icon: '📋' },
 ];
 
 // 온보딩에서 눌러 담는 추천 약속/보상
@@ -128,7 +126,6 @@ const STARTER_REWARDS = [
 const KID_TABS = [
   { key: 'board',   label: '내 쿠키', icon: '🍪' },
   { key: 'mission', label: '약속',    icon: '💪' },
-  { key: 'talk',    label: '게시판',  icon: '📌' },
 ];
 
 /* ---------- Utilities ---------- */
@@ -538,7 +535,7 @@ function activeKids()       { return KIDS.filter(k => (state.kidsEnabled || ['fi
 
 function switchUser(id) {
   state.me = id;
-  state.tab = 'board';
+  state.tab = isParent(id) ? 'mission' : 'board';
   saveState();
   render();
 }
@@ -799,8 +796,8 @@ function setupApplyPicks() {
 function finishSetup() {
   state.onboardSetup = false;
   state.onboardMode = 'choose';
-  state.me = 'parent'; // 설정한 사람은 부모님 — 홈의 "시작 미션"으로 안내
-  state.tab = 'board';
+  state.me = 'parent'; // 설정한 사람은 부모님 — 약속 탭의 "시작 미션"으로 안내
+  state.tab = 'mission';
   adoptFamilyKey(state.onboardCode); // 이제서야 방 생성 + 업로드
   celebrate('🎉', '우리 가족방 완성!', nameOf('first') + '(이)랑 같이 시작해보세요');
 }
@@ -870,7 +867,7 @@ function joinFamilyRoom() {
         return;
       }
       state.me = 'parent'; // 새 기기도 부모님 화면부터 시작
-      state.tab = 'board';
+      state.tab = 'mission';
       adoptFamilyKey(code); // 방 데이터는 클라우드 연결 시 곧바로 받아온다
       showToast('가족방에 들어왔어요! 🎉');
     })
@@ -895,40 +892,6 @@ function deleteLogEntry(id) {
   saveState();
   render();
   showToast(l.delta > 0 ? '칭찬 기록을 지우고 쿠키 ' + l.delta + '개를 회수했어요' : '기록을 지웠어요');
-}
-
-/* ---------- 게시판 ---------- */
-
-function addPost() {
-  const text = (state.talkText || '').trim();
-  if (!text) return;
-  if (!Array.isArray(state.posts)) state.posts = [];
-  state.posts.unshift({ id: newId(), by: state.me, text: text, atMs: Date.now(), hearts: [] });
-  state.talkText = '';
-  saveState();
-  render();
-  showToast('게시판에 글을 올렸어요 📌');
-}
-
-function deletePost(id) {
-  const p = (state.posts || []).find(x => x.id === id);
-  if (!p) return;
-  if (!meIsParent() && p.by !== state.me) return;
-  state.posts = state.posts.filter(x => x.id !== id);
-  saveState();
-  render();
-  showToast('글을 삭제했어요');
-}
-
-function togglePostHeart(id) {
-  const p = (state.posts || []).find(x => x.id === id);
-  if (!p) return;
-  if (!Array.isArray(p.hearts)) p.hearts = [];
-  const i = p.hearts.indexOf(state.me);
-  if (i >= 0) p.hearts.splice(i, 1);
-  else p.hearts.push(state.me);
-  saveState();
-  render();
 }
 
 /* ---------- PIN lock (부모님 화면 잠금) ---------- */
@@ -1110,15 +1073,13 @@ function renderMain() {
   const isP = meIsParent();
   let html = '';
   if (!isP) {
-    if (state.tab === 'shop')    state.tab = 'board'; // 구버전 탭 → 내 쿠키로 통합됨
+    if (state.tab === 'shop' || state.tab === 'talk') state.tab = 'board'; // 통합된 구버전 탭
     if (state.tab === 'board')   html = renderKidBoard();
     if (state.tab === 'mission') html = renderKidMission();
-    if (state.tab === 'talk')    html = renderTalk();
   } else {
-    if (state.tab === 'board')   html = renderParentHome();
+    if (state.tab === 'board' || state.tab === 'talk') state.tab = 'mission'; // 홈·게시판 → 약속으로 통합
     if (state.tab === 'mission') html = renderParentMission();
     if (state.tab === 'rewards') html = renderParentRewards();
-    if (state.tab === 'talk')    html = renderTalk();
     if (state.tab === 'log')     html = renderParentLog();
   }
   main.innerHTML = html;
@@ -1514,11 +1475,9 @@ function renderStarterChecklist() {
     { done: state.missions.length > 0,
       icon: '📨', label: '약속 탭에서 ' + nameOf('first') + '에게 첫 약속 보내기' },
     { done: state.rewards.length > 0,
-      icon: '🎁', label: '마켓 탭에서 보상 하나 올리기 (예: 아이스크림)' },
+      icon: '🎁', label: '보상설정 탭에서 보상 하나 올리기 (예: 아이스크림)' },
     { done: state.missions.some(m => m.state !== 'todo') || state.log.length > 0,
       icon: '💪', label: '위 이름표에서 ' + nameOf('first') + ' 화면으로 바꿔, 아이와 함께 "했어요!" 눌러보기' },
-    { done: (state.posts || []).length > 0,
-      icon: '📌', label: '게시판에 첫 인사 남기기' },
   ];
   const doneCount = steps.filter(s => s.done).length;
   if (doneCount === steps.length) return '';
@@ -1535,56 +1494,6 @@ function renderStarterChecklist() {
       ${rows}
       <div class="starter-note">하나씩 해보면 사용법이 저절로 익혀져요!</div>
     </div>
-  `;
-}
-
-function renderParentHome() {
-  const kids = activeKids();
-  if (kids.indexOf(state.bonusKid) < 0) state.bonusKid = kids[0];
-  const pending = state.missions.filter(m => m.state === 'pending' && kids.indexOf(m.kid) >= 0);
-
-  const pendingBlock = pending.length === 0
-    ? `<div class="empty-box">지금은 확인할 약속이 없어요 ✨</div>`
-    : `<div class="pending-list">${pending.map(m => renderPendingCard(m)).join('')}</div>`;
-
-  const badge = pending.length > 0
-    ? `<span class="pending-badge">${pending.length}</span>`
-    : '';
-
-  const kidsRow = kids.map(k => `
-    <div class="kid-status-card -${k}">
-      <div class="kid-status-name">${escapeHtml(nameOf(k))}</div>
-      <div class="kid-status-num">${state.balance[k] || 0}</div>
-      <div class="kid-status-label">쿠키</div>
-    </div>
-  `).join('');
-
-  const bonusBlock = `
-    <div class="sub-head">칭찬 쿠키 바로 주기 💖</div>
-    <div class="bonus-box">
-      <div class="pill-row">
-        ${kids.map(k => {
-          const cls = 'pill' + (state.bonusKid === k ? (' -active-kid -' + k) : '');
-          return `<button class="${cls}" data-action="set-bonus-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
-        }).join('')}
-      </div>
-      <div class="bonus-input-row">
-        <input class="text-input" id="input-bonus-text" placeholder="칭찬 이유 (예: 심부름 잘함)" value="${escapeHtml(state.bonusText || '')}" data-input="bonus-text"/>
-        <button class="btn-navy" data-action="give-bonus">🍪 주기</button>
-      </div>
-    </div>
-  `;
-
-  return `
-    ${renderStarterChecklist()}
-    <div class="section-head">
-      <span class="section-title">확인해주세요</span>
-      ${badge}
-    </div>
-    ${pendingBlock}
-    <div class="sub-head">아이들 현황</div>
-    <div class="kids-status-row">${kidsRow}</div>
-    ${bonusBlock}
   `;
 }
 
@@ -1611,6 +1520,41 @@ function renderPendingCard(m) {
 function renderParentMission() {
   const kids = activeKids();
   if (kids.indexOf(state.nmKid) < 0) state.nmKid = kids[0];
+  if (kids.indexOf(state.bonusKid) < 0) state.bonusKid = kids[0];
+
+  // 확인해주세요 — 아이의 "했어요!"를 확인하고 쿠키 주기
+  const pending = state.missions.filter(m => m.state === 'pending' && kids.indexOf(m.kid) >= 0);
+  const pendingBlock = pending.length === 0
+    ? `<div class="empty-box">지금은 확인할 약속이 없어요 ✨</div>`
+    : `<div class="pending-list">${pending.map(m => renderPendingCard(m)).join('')}</div>`;
+  const badge = pending.length > 0 ? `<span class="pending-badge">${pending.length}</span>` : '';
+
+  // 아이들 쿠키 현황
+  const kidsRow = kids.map(k => `
+    <div class="kid-status-card -${k}">
+      <div class="kid-status-name">${escapeHtml(nameOf(k))}</div>
+      <div class="kid-status-num">${state.balance[k] || 0}</div>
+      <div class="kid-status-label">쿠키</div>
+    </div>
+  `).join('');
+
+  // 칭찬 쿠키 바로 주기
+  const bonusBlock = `
+    <div class="sub-head">칭찬 쿠키 바로 주기 💖</div>
+    <div class="bonus-box">
+      <div class="pill-row">
+        ${kids.map(k => {
+          const cls = 'pill' + (state.bonusKid === k ? (' -active-kid -' + k) : '');
+          return `<button class="${cls}" data-action="set-bonus-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
+        }).join('')}
+      </div>
+      <div class="bonus-input-row">
+        <input class="text-input" id="input-bonus-text" placeholder="칭찬 이유 (예: 심부름 잘함)" value="${escapeHtml(state.bonusText || '')}" data-input="bonus-text"/>
+        <button class="btn-navy" data-action="give-bonus">🍪 주기</button>
+      </div>
+    </div>
+  `;
+
   const sections = kids.map(k => {
     const list = sortMissions(state.missions.filter(m => m.kid === k));
     const rows = list.map(m => renderParentMissionRow(m)).join('');
@@ -1646,6 +1590,16 @@ function renderParentMission() {
   const submitLabel = nameOf(state.nmKid) + '에게 약속 보내기';
 
   return `
+    ${renderStarterChecklist()}
+    <div class="section-head">
+      <span class="section-title">확인해주세요</span>
+      ${badge}
+    </div>
+    ${pendingBlock}
+    <div class="sub-head">아이들 현황</div>
+    <div class="kids-status-row">${kidsRow}</div>
+    ${bonusBlock}
+    <div class="sub-head">보낸 약속 📋</div>
     ${sections}
     <div class="sub-head">새 약속 보내기 📨</div>
     <div class="form-box">
@@ -1726,76 +1680,9 @@ function renderParentRewards() {
   `;
 
   return `
-    <div class="section-head"><span class="section-title">쿠키마켓 관리 🎁</span></div>
+    <div class="section-head"><span class="section-title">보상 설정 🎁</span></div>
     <div style="display:flex;flex-direction:column;gap:9px">${rows}</div>
     ${addForm}
-  `;
-}
-
-/* ---------- 게시판 (부모 + 아이 공용) ---------- */
-
-function renderTalk() {
-  const me = state.me;
-  const themeCls = meIsParent() ? '-parent' : kidThemeCls(me);
-
-  const composer = `
-    <div class="note-composer">
-      <input class="text-input" id="input-talk-text" placeholder="가족에게 하고 싶은 말을 남겨보세요" value="${escapeHtml(state.talkText || '')}" data-input="talk-text"/>
-      <button class="btn-send ${themeCls}" data-action="add-post">📌 올리기</button>
-    </div>
-  `;
-
-  const posts = (state.posts || []).slice().sort((a, b) => (b.atMs || 0) - (a.atMs || 0));
-  const groups = new Map();
-  for (const p of posts) {
-    const key = p.atMs ? dayKeyFromMs(p.atMs) : 'older';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(p);
-  }
-
-  const sections = Array.from(groups.entries()).map(([key, entries]) => {
-    const label = key === 'older' ? '그전' : dayLabelFromKey(key);
-    const cards = entries.map(p => renderNoteCard(p)).join('');
-    return `
-      <div class="log-group">
-        <div class="log-group-head">${escapeHtml(label)}</div>
-        <div class="note-list">${cards}</div>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <h2 class="screen-title">우리집 게시판 📌</h2>
-    ${composer}
-    ${sections || `<div class="empty-box">아직 글이 없어요. 첫 글을 남겨보세요 ✨</div>`}
-  `;
-}
-
-function renderNoteCard(p) {
-  const authorCls = isParent(p.by) ? '-parent' : ('-' + p.by);
-  const hearts = Array.isArray(p.hearts) ? p.hearts : [];
-  const mine = hearts.indexOf(state.me) >= 0;
-  const heartLabel = hearts.length > 0 ? '💛 ' + hearts.length : '🤍';
-  const heartNames = hearts.length > 0
-    ? `<span class="note-heart-names">${escapeHtml(hearts.map(nameOf).join(', '))}</span>`
-    : '';
-  const canDelete = meIsParent() || p.by === state.me;
-  const delBtn = canDelete
-    ? `<button class="note-delete" data-action="delete-post" data-id="${p.id}" aria-label="삭제">✕</button>`
-    : '';
-  return `
-    <div class="note-card ${authorCls}">
-      <div class="note-top">
-        <span class="note-author ${authorCls}">${escapeHtml(nameOf(p.by))}</span>
-        <span class="note-time">${p.atMs ? timeOfDayLabel(p.atMs) : ''}</span>
-        ${delBtn}
-      </div>
-      <div class="note-text">${escapeHtml(p.text)}</div>
-      <div class="note-foot">
-        <button class="note-heart ${mine ? '-on' : ''}" data-action="toggle-heart" data-id="${p.id}">${heartLabel}</button>
-        ${heartNames}
-      </div>
-    </div>
   `;
 }
 
@@ -1964,7 +1851,6 @@ function wireInputs() {
       if (key === 'bonus-text')       state.bonusText      = e.target.value;
       if (key === 'nm-text')          state.nmText         = e.target.value;
       if (key === 'nr-text')          state.nrText         = e.target.value;
-      if (key === 'talk-text')        state.talkText       = e.target.value;
       if (key === 'onboard-code')     state.onboardInput   = e.target.value;
       if (key === 'onboard-kid-name') state.onboardKidName = e.target.value;
       if (key === 'onboard-pin')      state.onboardPin     = e.target.value;
@@ -1975,7 +1861,6 @@ function wireInputs() {
         if (key === 'bonus-text')       giveBonus();
         if (key === 'nm-text')          addMission();
         if (key === 'nr-text')          addReward();
-        if (key === 'talk-text')        addPost();
         if (key === 'onboard-code')     joinFamilyRoom();
         if (key === 'onboard-kid-name') setupSaveName();
         if (key === 'onboard-pin')      setupSavePin();
@@ -2113,17 +1998,6 @@ document.addEventListener('click', e => {
       return;
     case 'buy':
       buyReward(Number(target.getAttribute('data-id')));
-      return;
-    case 'add-post':
-      addPost();
-      return;
-    case 'delete-post':
-      if (confirm('이 글을 삭제할까요?')) {
-        deletePost(Number(target.getAttribute('data-id')));
-      }
-      return;
-    case 'toggle-heart':
-      togglePostHeart(Number(target.getAttribute('data-id')));
       return;
     case 'add-second-kid':
       addNextKid();
