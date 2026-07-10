@@ -455,6 +455,45 @@ function showSystemNotification(title, body) {
   }
 }
 
+/* ---------- 앱 설치 버튼 (PWA 설치 프롬프트) ----------
+   지원 브라우저(안드로이드 크롬 등)에서는 브라우저가 주는
+   설치 이벤트를 붙잡아 두었다가, 버튼 한 번으로 설치시킨다. */
+
+let installPromptEvent = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPromptEvent = e;
+  render(); // 설치 버튼 표시
+});
+
+window.addEventListener('appinstalled', () => {
+  installPromptEvent = null;
+  showToast('앱이 설치됐어요! 홈 화면에서 열어보세요 🍪');
+  render();
+});
+
+function isStandalone() {
+  return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function canInstallApp() {
+  return !!installPromptEvent && !isStandalone();
+}
+
+function promptInstallApp() {
+  if (!installPromptEvent) return;
+  installPromptEvent.prompt();
+  installPromptEvent.userChoice.then(() => {
+    installPromptEvent = null;
+    render();
+  }).catch(() => {});
+}
+
+function isIOS() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
+
 /* ---------- 칭찬 도착 알림 ----------
    부모가 다른 기기에서 쿠키를 주면, 아이 기기에 실시간으로
    축하 화면이 뜬다. 이 기기에서 마지막으로 본 시각 이후의
@@ -1195,6 +1234,7 @@ function renderOnboarding() {
       <div class="onboard-sub">약속을 지키면 쿠키를 모으고,<br>모은 쿠키로 보상을 바꾸는 가족 앱이에요</div>
       <button class="onboard-btn -primary" data-action="onboard-create">🏠 새 가족방 만들기</button>
       <button class="onboard-btn -secondary" data-action="onboard-join-mode">🔑 초대 코드로 들어가기</button>
+      ${canInstallApp() ? '<button class="onboard-btn -secondary" data-action="install-app">📲 앱으로 설치하기</button>' : ''}
       <div class="onboard-note">가족방을 만들면 초대 코드가 생겨요.<br>가족 기기에서 그 코드로 들어오면 실시간으로 함께 쓸 수 있어요.</div>
       <a class="onboard-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>
     </div>
@@ -1812,6 +1852,23 @@ function renderSettings() {
       <div class="field-hint">부모님 기기: 아이가 "했어요!"를 누르면 알려드려요. 아이 기기: 칭찬 쿠키가 도착하면 알려줘요. 앱이 열려 있거나 최근에 사용 중일 때 동작해요.</div>
     </div>
   `;
+  let installField = '';
+  if (canInstallApp()) {
+    installField = `
+      <div>
+        <div class="field-label">앱으로 설치 📲</div>
+        <button class="btn-install" data-action="install-app">홈 화면에 앱으로 설치하기</button>
+        <div class="field-hint">주소창 없이 진짜 앱처럼 열리고, 앱 목록에도 등록돼요.</div>
+      </div>
+    `;
+  } else if (isIOS() && !isStandalone()) {
+    installField = `
+      <div>
+        <div class="field-label">앱으로 설치 📲</div>
+        <div class="field-hint">아이폰은 사파리 하단의 공유 버튼 ⬆️ → "홈 화면에 추가"를 누르면 앱으로 설치돼요.</div>
+      </div>
+    `;
+  }
   const feedbackField = `
     <div>
       <div class="field-label">개발자에게 피드백 보내기 💬</div>
@@ -1827,7 +1884,7 @@ function renderSettings() {
     </div>
   `;
   const privacyLink = `<a class="settings-privacy" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>`;
-  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + feedbackField + resetField + privacyLink;
+  document.getElementById('settings-body').innerHTML = fields + pinField + addKidBtn + famField + notifyField + installField + feedbackField + resetField + privacyLink;
 }
 
 function renderPinModal() {
@@ -2080,6 +2137,9 @@ document.addEventListener('click', e => {
       return;
     case 'send-feedback':
       sendFeedback();
+      return;
+    case 'install-app':
+      promptInstallApp();
       return;
   }
 });
