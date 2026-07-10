@@ -66,12 +66,23 @@ const DEVICE_ID = (function () {
 
 const DEFAULT_NAMES = {
   parent: '부모님',
-  first: '이레',
-  second: '겨레',
+  first: '첫째',
+  second: '둘째',
+  third: '셋째',
+  fourth: '넷째',
+  fifth: '다섯째',
 };
 
-const KIDS = ['first', 'second'];
-const ALL_USERS = ['first', 'second', 'parent'];
+const KIDS = ['first', 'second', 'third', 'fourth', 'fifth'];
+
+// 아이별 테마색 (styles.css의 .-first ~ .-fifth 변수와 짝을 이룸)
+const KID_COLORS = {
+  first:  { main: '#7048E8', deep: '#5F3DC4', bg: '#F3F0FF' },
+  second: { main: '#F76707', deep: '#E8590C', bg: '#FFF4E6' },
+  third:  { main: '#0CA678', deep: '#099268', bg: '#E6FCF5' },
+  fourth: { main: '#E64980', deep: '#D6336C', bg: '#FFF0F6' },
+  fifth:  { main: '#1C7ED6', deep: '#1971C2', bg: '#E7F5FF' },
+};
 
 // Chocolate chip positions (viewBox 0-100) — 4 variants for visual variety
 const COOKIE_CHIPS = [
@@ -229,7 +240,7 @@ function loadState() {
       merged.userNames = {
         parent: '부모님',
         first: merged.userNames.first || '이레',
-        second: merged.userNames.second || '겨레',
+        second: merged.userNames.second || DEFAULT_NAMES.second,
       };
     }
     return applyDailyReset(merged);
@@ -504,7 +515,7 @@ function nameOf(id)         { return state.userNames[id] || DEFAULT_NAMES[id] ||
 function isParent(id)       { return id === 'parent'; }
 function meIsParent()       { return isParent(state.me); }
 function myKidId()          { return isParent(state.me) ? null : state.me; }
-function kidTheme(kidId)    { return kidId === 'first' ? 'first' : 'second'; }
+function kidThemeCls(kidId) { return '-' + kidId; }
 function activeKids()       { return KIDS.filter(k => (state.kidsEnabled || ['first']).indexOf(k) >= 0); }
 
 /* ============================================================
@@ -971,13 +982,15 @@ function sendFeedback() {
   });
 }
 
-function addSecondKid() {
-  if (activeKids().indexOf('second') >= 0) return;
-  state.kidsEnabled = ['first', 'second'];
-  if (!state.userNames.second) state.userNames.second = DEFAULT_NAMES.second;
+function addNextKid() {
+  const enabled = activeKids();
+  const next = KIDS.find(k => enabled.indexOf(k) < 0);
+  if (!next) return;
+  state.kidsEnabled = enabled.concat([next]);
+  if (!state.userNames[next]) state.userNames[next] = DEFAULT_NAMES[next];
   saveState();
   render();
-  showToast('둘째가 추가됐어요! 이름을 정해주세요 🧡');
+  showToast(DEFAULT_NAMES[next] + ' 아이가 추가됐어요! 이름을 정해주세요 🧡');
 }
 
 /* ============================================================
@@ -996,7 +1009,7 @@ function renderHeader() {
     `;
     return;
   }
-  const cls = meIsParent() ? '-parent' : (state.me === 'first' ? '-first' : '-second');
+  const cls = meIsParent() ? '-parent' : kidThemeCls(state.me);
   header.className = 'app-header ' + cls;
 
   const chips = [...activeKids(), 'parent'].map(id => {
@@ -1028,8 +1041,9 @@ function renderTabs() {
   }
   const isP = meIsParent();
   const tabs = isP ? PARENT_TABS : KID_TABS;
-  const accent = isP ? 'var(--navy)' : (state.me === 'first' ? 'var(--first)' : 'var(--second)');
-  const accentBg = state.me === 'first' ? 'var(--first-bg)' : 'var(--second-bg)';
+  const kc = KID_COLORS[state.me] || KID_COLORS.first;
+  const accent = isP ? 'var(--navy)' : kc.main;
+  const accentBg = kc.bg;
   nav.className = 'app-tabs' + (isP ? '' : ' -kid');
   nav.style.setProperty('--tab-accent', accent);
   nav.style.setProperty('--tab-accent-bg', accentBg);
@@ -1050,7 +1064,7 @@ function renderMain() {
     return;
   }
   let cls = 'app-main';
-  if (!meIsParent()) cls += state.me === 'first' ? ' -first' : ' -second';
+  if (!meIsParent()) cls += ' -kid ' + kidThemeCls(state.me);
   main.className = cls;
 
   const isP = meIsParent();
@@ -1166,7 +1180,7 @@ function renderOnboarding() {
 
 function renderKidBoard() {
   const kid = myKidId();
-  const themeCls = kid === 'first' ? '-first' : '-second';
+  const themeCls = kidThemeCls(kid);
   const count = state.balance[kid] || 0;
 
   const nextReward = state.rewards
@@ -1214,9 +1228,10 @@ function renderKidBoard() {
     }
   }
 
-  const themeColor = kid === 'first' ? '#7048E8' : '#F76707';
-  const themeDeep  = kid === 'first' ? '#5F3DC4' : '#E8590C';
-  const themeBg    = kid === 'first' ? '#F3F0FF' : '#FFF4E6';
+  const kc = KID_COLORS[kid] || KID_COLORS.first;
+  const themeColor = kc.main;
+  const themeDeep  = kc.deep;
+  const themeBg    = kc.bg;
 
   // 쿠키통 표정 — 채울수록 행복해진다 (0: 쿨쿨 → 미소 → 신남 → 목표 달성: 반짝)
   const ratio = state.rewards.length > 0 && !nextReward
@@ -1270,7 +1285,7 @@ function renderKidBoard() {
   // 쿠키마켓 — 모은 쿠키를 바로 꺼내서 보상으로 바꾸는 곳
   const shopCards = state.rewards.map(r => {
     const can = count >= r.price;
-    const btnCls = can ? ('btn-buy -can-' + (themeCls === '-first' ? 'first' : 'second')) : 'btn-buy -no';
+    const btnCls = can ? 'btn-buy -can' : 'btn-buy -no';
     const btnLabel = can ? '꺼내 바꾸기!' : (r.price - count) + '개 더';
     return `
       <div class="shop-card">
@@ -1356,7 +1371,7 @@ function jarFaceSvg(ratio, deep) {
 
 function renderKidMission() {
   const kid = myKidId();
-  const themeCls = kid === 'first' ? '-first' : '-second';
+  const themeCls = kidThemeCls(kid);
   const list = sortMissions(state.missions.filter(m => m.kid === kid));
 
   const cards = list.map(m => renderMissionCard(m, themeCls, true)).join('');
@@ -1397,9 +1412,9 @@ function renderMissionCard(m, themeCls, kidCanRequest) {
   const pending = m.state === 'pending';
   const tokenGlyph = done ? '🌟' : pending ? '⏳' : '';
   let tokenCls = 'mission-token';
-  if (done) tokenCls += ' -done-' + (themeCls === '-first' ? 'first' : 'second');
+  if (done) tokenCls += ' -done';
   else if (pending) tokenCls += ' -pending';
-  else tokenCls += ' -todo-' + (themeCls === '-first' ? 'first' : 'second');
+  else tokenCls += ' -todo';
 
   const starBadge = stars > 1 ? `<span class="stars-badge">⭐×${stars}</span>` : '';
 
@@ -1485,7 +1500,7 @@ function renderParentHome() {
     <div class="bonus-box">
       <div class="pill-row">
         ${kids.map(k => {
-          const cls = 'pill' + (state.bonusKid === k ? (' -active-' + k) : '');
+          const cls = 'pill' + (state.bonusKid === k ? (' -active-kid -' + k) : '');
           return `<button class="${cls}" data-action="set-bonus-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
         }).join('')}
       </div>
@@ -1546,7 +1561,7 @@ function renderParentMission() {
   }).join('');
 
   const kidPills = kids.map(k => {
-    const cls = 'pill' + (state.nmKid === k ? (' -active-' + k) : '');
+    const cls = 'pill' + (state.nmKid === k ? (' -active-kid -' + k) : '');
     return `<button class="${cls}" data-action="set-nm-kid" data-kid="${k}">${escapeHtml(nameOf(k))}</button>`;
   }).join('');
 
@@ -1657,7 +1672,7 @@ function renderParentRewards() {
 
 function renderTalk() {
   const me = state.me;
-  const themeCls = meIsParent() ? '-parent' : (me === 'first' ? '-first' : '-second');
+  const themeCls = meIsParent() ? '-parent' : kidThemeCls(me);
 
   const composer = `
     <div class="note-composer">
@@ -1803,12 +1818,9 @@ function renderSettings() {
   }
   el.hidden = false;
   const draft = state.settingsDraft || {};
-  const hasSecond = activeKids().indexOf('second') >= 0;
-  const fieldDefs = [
-    { id: 'parent', label: '부모님 표시 이름' },
-    { id: 'first', label: '첫째 이름' },
-  ];
-  if (hasSecond) fieldDefs.push({ id: 'second', label: '둘째 이름' });
+  const enabledKids = activeKids();
+  const fieldDefs = [{ id: 'parent', label: '부모님 표시 이름' }]
+    .concat(enabledKids.map(k => ({ id: k, label: DEFAULT_NAMES[k] + ' 이름' })));
   const fields = fieldDefs.map(f => `
     <div>
       <div class="field-label">${f.label}</div>
@@ -1821,8 +1833,9 @@ function renderSettings() {
       <input class="field-input" data-settings-id="pin" inputmode="numeric" maxlength="4" placeholder="바꾸려면 입력 (처음엔 0000)" value="${escapeHtml(draft.pin || '')}"/>
     </div>
   `;
-  const addKidBtn = hasSecond ? '' : `
-    <button class="btn-add-kid" data-action="add-second-kid">🧡 둘째 추가하기</button>
+  const nextKid = KIDS.find(k => enabledKids.indexOf(k) < 0);
+  const addKidBtn = !nextKid ? '' : `
+    <button class="btn-add-kid" data-action="add-second-kid">🧡 ${DEFAULT_NAMES[nextKid]} 추가하기</button>
   `;
   const famField = `
     <div>
@@ -2038,7 +2051,7 @@ document.addEventListener('click', e => {
       togglePostHeart(Number(target.getAttribute('data-id')));
       return;
     case 'add-second-kid':
-      addSecondKid();
+      addNextKid();
       return;
     case 'delete-log': {
       const delta = Number(target.getAttribute('data-delta')) || 0;
