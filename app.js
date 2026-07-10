@@ -832,12 +832,44 @@ function setupApplyPicks() {
   render();
 }
 
+function copyText(text, doneMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast(doneMsg))
+      .catch(() => showToast('복사에 실패했어요'));
+  } else {
+    showToast('복사를 지원하지 않는 브라우저예요');
+  }
+}
+
+function inviteMessage() {
+  const code = FAMILY_KEY || state.onboardCode || '';
+  return '🍪 우리집 칭찬가게에 초대해요!\n\n'
+    + '1) 링크 열기: ' + location.origin + location.pathname + '\n'
+    + '2) "초대 코드로 들어가기" 누르고 코드 입력: ' + code;
+}
+
+function shareInvite() {
+  if (navigator.share) {
+    navigator.share({ text: inviteMessage() }).catch(() => {});
+  } else {
+    copyText(inviteMessage(), '초대장을 복사했어요! 카톡에 붙여넣어 보내세요');
+  }
+}
+
+// 사용법 안내 다음 → 이 시점에 가족방을 실제로 만들고 초대 단계로
+function setupGuideNext() {
+  state.me = 'parent';
+  state.tab = 'mission';
+  adoptFamilyKey(state.onboardCode);
+  state.onboardMode = 'setup-invite';
+  render();
+}
+
 function finishSetup() {
   state.onboardSetup = false;
   state.onboardMode = 'choose';
-  state.me = 'parent'; // 설정한 사람은 부모님 — 약속 탭의 "시작 미션"으로 안내
-  state.tab = 'mission';
-  adoptFamilyKey(state.onboardCode); // 이제서야 방 생성 + 업로드
+  render();
   celebrate('🎉', '우리 가족방 완성!', nameOf('first') + '(이)랑 같이 시작해보세요');
 }
 
@@ -1142,7 +1174,7 @@ function renderOnboarding() {
   if (state.onboardMode === 'setup-name') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">1 / 4</div>
+        <div class="onboard-steps">1 / 5</div>
         <div class="onboard-emoji">🧒</div>
         <div class="onboard-title">아이 이름 정하기</div>
         <div class="onboard-sub">앱에서 부를 이름이에요. 애칭도 좋아요!</div>
@@ -1156,7 +1188,7 @@ function renderOnboarding() {
   if (state.onboardMode === 'setup-pin') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">2 / 4</div>
+        <div class="onboard-steps">2 / 5</div>
         <div class="onboard-emoji">🔒</div>
         <div class="onboard-title">부모님 비밀번호</div>
         <div class="onboard-sub">부모님 화면(쿠키 주기·보상 관리)을 잠그는<br>숫자 4자리예요</div>
@@ -1180,7 +1212,7 @@ function renderOnboarding() {
     }).join('');
     return `
       <div class="onboard">
-        <div class="onboard-steps">3 / 4</div>
+        <div class="onboard-steps">3 / 5</div>
         <div class="onboard-emoji">🛒</div>
         <div class="onboard-title">눌러서 담아보세요</div>
         <div class="onboard-sub">${escapeHtml(kidName)}의 첫 약속과 보상이에요.<br>나중에 얼마든지 바꿀 수 있어요</div>
@@ -1195,7 +1227,7 @@ function renderOnboarding() {
   if (state.onboardMode === 'setup-guide') {
     return `
       <div class="onboard">
-        <div class="onboard-steps">4 / 4</div>
+        <div class="onboard-steps">4 / 5</div>
         <div class="onboard-emoji">📖</div>
         <div class="onboard-title">이렇게 써요</div>
         <div class="onboard-guide">
@@ -1204,10 +1236,22 @@ function renderOnboarding() {
           <div class="onboard-guide-row"><span class="onboard-guide-num">3</span> 확인하면 쿠키 지급! 🍪</div>
           <div class="onboard-guide-row"><span class="onboard-guide-num">4</span> 모은 쿠키로 쿠키마켓에서 보상 교환 🎁</div>
         </div>
-        <div class="onboard-sub" style="margin:14px 0 4px">가족 폰·태블릿에서는 이 코드로 들어오세요</div>
-        <div class="family-code">${escapeHtml(state.onboardCode || FAMILY_KEY || '')}</div>
+        <button class="onboard-btn -primary" data-action="setup-guide-next">다음 →</button>
+      </div>
+    `;
+  }
+  if (state.onboardMode === 'setup-invite') {
+    return `
+      <div class="onboard">
+        <div class="onboard-steps">5 / 5</div>
+        <div class="onboard-emoji">💌</div>
+        <div class="onboard-title">가족을 초대해요</div>
+        <div class="onboard-sub">가족의 폰·태블릿에서 이 코드로 들어오면<br>실시간으로 함께 쓸 수 있어요</div>
+        <div class="family-code">${escapeHtml(FAMILY_KEY || state.onboardCode || '')}</div>
+        <button class="onboard-btn -secondary" data-action="share-invite">📤 카톡·문자로 초대장 보내기</button>
+        <button class="onboard-btn -ghost" data-action="copy-code">📋 코드만 복사</button>
         <button class="onboard-btn -primary" data-action="setup-finish">시작하기! 🍪</button>
-        <div class="onboard-note">초대 코드는 설정 ⚙️에서 언제든 다시 볼 수 있어요</div>
+        <div class="onboard-note">지금 안 해도 괜찮아요.<br>초대 코드와 초대장 보내기는 설정 ⚙️에 항상 있어요</div>
       </div>
     `;
   }
@@ -1839,6 +1883,7 @@ function renderSettings() {
       <div class="field-label">가족방 초대 코드 🔑</div>
       <div class="family-code">${escapeHtml(FAMILY_KEY || '')}</div>
       <div class="field-hint">다른 기기에서 "초대 코드로 들어가기"에 이 코드를 입력하면 같은 가족방에 연결돼요. 가족 외에는 알려주지 마세요!</div>
+      <button class="btn-share-invite" data-action="share-invite">📤 초대장 보내기</button>
       <button class="btn-rotate-code" data-action="rotate-code">🔄 초대 코드 바꾸기 (유출됐을 때)</button>
     </div>
   `;
@@ -2099,6 +2144,15 @@ document.addEventListener('click', e => {
       return;
     case 'setup-finish':
       finishSetup();
+      return;
+    case 'setup-guide-next':
+      setupGuideNext();
+      return;
+    case 'share-invite':
+      shareInvite();
+      return;
+    case 'copy-code':
+      copyText(FAMILY_KEY || state.onboardCode || '', '초대 코드를 복사했어요!');
       return;
     case 'pick-mission': {
       const i = Number(target.getAttribute('data-i'));
