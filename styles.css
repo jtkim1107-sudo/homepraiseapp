@@ -828,6 +828,19 @@ input {
   flex-shrink: 0;
   margin-right: 6px;
 }
+.btn-use-request {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(160deg, var(--kid, #7C58F0), var(--kid-deep, #5F3DC4));
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 13px;
+  padding: 9px 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 6px;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--kid, #7048E8) 30%, transparent);
+}
 .btn-use-voucher {
   border: none;
   border-radius: 12px;

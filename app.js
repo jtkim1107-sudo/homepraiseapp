@@ -368,6 +368,7 @@ function initCloud() {
                 notifyNewPraise();
                 notifyNewPending();
                 notifyNewVouchers();
+                notifyVoucherApproved();
               }
             });
           });
@@ -530,22 +531,44 @@ let knownVoucherIds = new Set();
 
 function rememberCurrentVouchers() {
   knownVoucherIds = new Set(
-    (state.vouchers || []).filter(v => v.state === 'active').map(v => v.id));
+    (state.vouchers || []).filter(v => v.state === 'requested').map(v => v.id));
 }
 
 function notifyNewVouchers() {
   if (!meIsParent()) {
     rememberCurrentVouchers();
+rememberUsedVouchers();
     return;
   }
   const fresh = (state.vouchers || []).filter(v =>
-    v.state === 'active' && !knownVoucherIds.has(v.id));
+    v.state === 'requested' && !knownVoucherIds.has(v.id));
   rememberCurrentVouchers();
+rememberUsedVouchers();
   if (fresh.length === 0) return;
   const v = fresh[0];
   showSystemNotification(
-    nameOf(v.kid) + ': 교환권 사용! 🎟️',
+    nameOf(v.kid) + ': 교환권 사용 신청! 🎟️',
     v.emoji + ' ' + v.text + ' — 약속대로 보상을 준비해주세요');
+}
+
+/* 아이 기기: 내 교환권이 승인(사용 완료)되면 축하 */
+let knownUsedVoucherIds = new Set();
+
+function rememberUsedVouchers() {
+  knownUsedVoucherIds = new Set(
+    (state.vouchers || []).filter(v => v.state === 'used').map(v => v.id));
+}
+
+function notifyVoucherApproved() {
+  const kid = myKidId();
+  if (!kid) { rememberUsedVouchers(); return; }
+  const fresh = (state.vouchers || []).filter(v =>
+    v.kid === kid && v.state === 'used' && !knownUsedVoucherIds.has(v.id));
+  rememberUsedVouchers();
+  if (fresh.length === 0) return;
+  const v = fresh[0];
+  celebrate('🎉', '교환권 승인!', v.emoji + ' ' + v.text + ' — 이제 받을 수 있어요!');
+  showSystemNotification('교환권 승인! 🎉', v.emoji + ' ' + v.text + ' — 이제 받을 수 있어요!');
 }
 
 let knownPendingIds = new Set();
@@ -800,7 +823,7 @@ function buyReward(id) {
     id: newId() + 1, kid: kid, text: r.emoji + ' ' + r.text + ' 교환!', delta: -r.price, atMs: Date.now(),
   });
   saveState();
-  celebrate('🎟️', r.text + ' 교환권 획득!', '엄마아빠에게 교환권을 보여주세요!');
+  celebrate('🎟️', r.text + ' 교환권 획득!', '쓰고 싶을 때 "사용할래요!"를 눌러요');
 }
 
 /* ---------- 가족방 온보딩 ---------- */
@@ -978,12 +1001,26 @@ function joinFamilyRoom() {
     });
 }
 
+/* ---------- 교환권 사용 신청 (아이) ---------- */
+
+function requestVoucher(id) {
+  const kid = myKidId();
+  if (!kid) return;
+  const v = (state.vouchers || []).find(x => x.id === id);
+  if (!v || v.kid !== kid || v.state !== 'active') return;
+  v.state = 'requested';
+  v.requestedAtMs = Date.now();
+  saveState();
+  render();
+  showToast('엄마아빠에게 사용 신청을 보냈어요! 🙋');
+}
+
 /* ---------- 교환권 사용 완료 (부모만) ---------- */
 
 function useVoucher(id) {
   if (!meIsParent()) return;
   const v = (state.vouchers || []).find(x => x.id === id);
-  if (!v || v.state !== 'active') return;
+  if (!v || v.state !== 'requested') return;
   v.state = 'used';
   v.usedAtMs = Date.now();
   saveState();
@@ -1449,8 +1486,9 @@ function renderKidBoard() {
       </div>
     `;
   }).join('');
-  // 내 교환권 — 부모님께 보여주고 보상을 받는 티켓
-  const myVouchers = (state.vouchers || []).filter(v => v.kid === kid && v.state === 'active');
+  // 내 교환권 — 쓰고 싶을 때 사용 신청하는 티켓
+  const myVouchers = (state.vouchers || []).filter(v =>
+    v.kid === kid && (v.state === 'active' || v.state === 'requested'));
   const voucherBlock = myVouchers.length ? `
     <div class="sub-head">내 교환권 🎟️</div>
     <div class="ticket-list">
@@ -1459,9 +1497,11 @@ function renderKidBoard() {
           <span class="ticket-emoji">${v.emoji}</span>
           <div class="ticket-body">
             <div class="ticket-name">${escapeHtml(v.text)}</div>
-            <div class="ticket-when">${v.atMs ? dayLabelFromKey(dayKeyFromMs(v.atMs)) : ''} · 엄마아빠에게 보여주세요!</div>
+            <div class="ticket-when">${v.atMs ? dayLabelFromKey(dayKeyFromMs(v.atMs)) : ''} 교환</div>
           </div>
-          <span class="ticket-badge">사용 전</span>
+          ${v.state === 'active'
+            ? `<button class="btn-use-request" data-action="request-voucher" data-id="${v.id}">사용할래요! 🙋</button>`
+            : `<span class="ticket-badge">기다리는 중 ⏳</span>`}
         </div>
       `).join('')}
     </div>
@@ -1675,10 +1715,10 @@ function renderParentMission() {
   const badge = pending.length > 0 ? `<span class="pending-badge">${pending.length}</span>` : '';
 
   // 교환권 확인 — 보상을 실제로 해주고 도장 찍기
-  const activeVouchers = (state.vouchers || []).filter(v => v.state === 'active' && kids.indexOf(v.kid) >= 0);
+  const activeVouchers = (state.vouchers || []).filter(v => v.state === 'requested' && kids.indexOf(v.kid) >= 0);
   const voucherSection = activeVouchers.length ? `
     <div class="section-head" style="margin-top:22px">
-      <span class="section-title">교환권 확인 🎟️</span>
+      <span class="section-title">교환권 사용 신청 🎟️</span>
       <span class="pending-badge">${activeVouchers.length}</span>
     </div>
     <div class="ticket-list">
@@ -1687,7 +1727,7 @@ function renderParentMission() {
           <span class="ticket-emoji">${v.emoji}</span>
           <div class="ticket-body">
             <div class="ticket-name">${escapeHtml(v.text)}</div>
-            <div class="ticket-when"><span class="pending-kid-name -${v.kid}">${escapeHtml(nameOf(v.kid))}</span> · ${v.atMs ? dayLabelFromKey(dayKeyFromMs(v.atMs)) : ''}</div>
+            <div class="ticket-when"><span class="pending-kid-name -${v.kid}">${escapeHtml(nameOf(v.kid))}</span> · 지금 쓰고 싶어해요!</div>
           </div>
           <button class="btn-use-voucher" data-action="use-voucher" data-id="${v.id}">사용 완료 ✅</button>
         </div>
@@ -2281,6 +2321,9 @@ document.addEventListener('click', e => {
     case 'use-voucher':
       useVoucher(Number(target.getAttribute('data-id')));
       return;
+    case 'request-voucher':
+      requestVoucher(Number(target.getAttribute('data-id')));
+      return;
   }
 });
 
@@ -2345,5 +2388,6 @@ document.addEventListener('visibilitychange', () => {
 
 rememberCurrentPending(); // 부팅 시점의 '확인 대기'는 이미 본 것으로 간주
 rememberCurrentVouchers();
+rememberUsedVouchers();
 render();
 initCloud();
