@@ -17,7 +17,7 @@ const STORAGE_KEY = 'praise-app-v1';
    화면에서 "새 가족방 만들기" 또는 "초대 코드로 들어가기"를 거친다.
    초대 코드 = 가족방 키. 코드를 아는 사람만 그 방에 접근할 수 있다. */
 const CLOUD_DATABASE_URL = 'https://homepraiseapp-default-rtdb.asia-southeast1.firebasedatabase.app';
-const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
+const SHARED_KEYS = ['userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled', 'vouchers'];
 
 const FAMILY_KEY_STORAGE = 'praise-app-family-key';
 
@@ -189,6 +189,7 @@ function seedState() {
     rewards: [],
     log: [],
     posts: [],
+    vouchers: [], // 교환권: 아이가 보상을 바꾸면 생기고, 부모가 '사용 완료' 도장을 찍는다
     kidsEnabled: ['first'],
     balance: { first: 0, second: 0 },
     pin: '0000',
@@ -200,7 +201,7 @@ function seedState() {
 
 /* ---------- State & persistence ---------- */
 
-const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled'];
+const PERSIST_KEYS = ['me', 'tab', 'userNames', 'missions', 'rewards', 'log', 'balance', 'pin', 'posts', 'kidsEnabled', 'vouchers'];
 
 const state = loadState();
 
@@ -366,6 +367,7 @@ function initCloud() {
                 render();
                 notifyNewPraise();
                 notifyNewPending();
+                notifyNewVouchers();
               }
             });
           });
@@ -523,6 +525,28 @@ function notifyNewPraise() {
 }
 
 /* ---------- "했어요!" 도착 알림 (부모 기기) ---------- */
+
+let knownVoucherIds = new Set();
+
+function rememberCurrentVouchers() {
+  knownVoucherIds = new Set(
+    (state.vouchers || []).filter(v => v.state === 'active').map(v => v.id));
+}
+
+function notifyNewVouchers() {
+  if (!meIsParent()) {
+    rememberCurrentVouchers();
+    return;
+  }
+  const fresh = (state.vouchers || []).filter(v =>
+    v.state === 'active' && !knownVoucherIds.has(v.id));
+  rememberCurrentVouchers();
+  if (fresh.length === 0) return;
+  const v = fresh[0];
+  showSystemNotification(
+    nameOf(v.kid) + ': 교환권 사용! 🎟️',
+    v.emoji + ' ' + v.text + ' — 약속대로 보상을 준비해주세요');
+}
 
 let knownPendingIds = new Set();
 
@@ -767,11 +791,16 @@ function buyReward(id) {
     return;
   }
   state.balance[kid] = bal - r.price;
+  if (!Array.isArray(state.vouchers)) state.vouchers = [];
+  state.vouchers.unshift({
+    id: newId(), kid: kid, emoji: r.emoji, text: r.text, price: r.price,
+    state: 'active', atMs: Date.now(),
+  });
   state.log.unshift({
-    id: newId(), kid: kid, text: r.emoji + ' ' + r.text + ' 획득!', delta: -r.price, atMs: Date.now(),
+    id: newId() + 1, kid: kid, text: r.emoji + ' ' + r.text + ' 교환!', delta: -r.price, atMs: Date.now(),
   });
   saveState();
-  celebrate(r.emoji, r.text + ' 획득!', '축하해요! 🎉');
+  celebrate('🎟️', r.text + ' 교환권 획득!', '엄마아빠에게 교환권을 보여주세요!');
 }
 
 /* ---------- 가족방 온보딩 ---------- */
@@ -947,6 +976,19 @@ function joinFamilyRoom() {
       showToast('연결에 실패했어요. 잠시 후 다시 해주세요');
       render();
     });
+}
+
+/* ---------- 교환권 사용 완료 (부모만) ---------- */
+
+function useVoucher(id) {
+  if (!meIsParent()) return;
+  const v = (state.vouchers || []).find(x => x.id === id);
+  if (!v || v.state !== 'active') return;
+  v.state = 'used';
+  v.usedAtMs = Date.now();
+  saveState();
+  render();
+  showToast('🎟️ 사용 완료 도장을 찍었어요!');
 }
 
 /* ---------- 칭찬 기록 삭제 (부모만) ---------- */
@@ -1407,6 +1449,24 @@ function renderKidBoard() {
       </div>
     `;
   }).join('');
+  // 내 교환권 — 부모님께 보여주고 보상을 받는 티켓
+  const myVouchers = (state.vouchers || []).filter(v => v.kid === kid && v.state === 'active');
+  const voucherBlock = myVouchers.length ? `
+    <div class="sub-head">내 교환권 🎟️</div>
+    <div class="ticket-list">
+      ${myVouchers.map(v => `
+        <div class="ticket">
+          <span class="ticket-emoji">${v.emoji}</span>
+          <div class="ticket-body">
+            <div class="ticket-name">${escapeHtml(v.text)}</div>
+            <div class="ticket-when">${v.atMs ? dayLabelFromKey(dayKeyFromMs(v.atMs)) : ''} · 엄마아빠에게 보여주세요!</div>
+          </div>
+          <span class="ticket-badge">사용 전</span>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
   const shopBlock = `
     <div class="shop-section-head">
       <span class="sub-head" style="margin:0">쿠키마켓 🎁</span>
@@ -1429,6 +1489,7 @@ function renderKidBoard() {
       ${count > 0 ? '<div class="jar-hint">쿠키통을 콕 눌러봐! 👆</div>' : ''}
       ${nextLine}
     </div>
+    ${voucherBlock}
     ${shopBlock}
   `;
 }
@@ -1613,6 +1674,27 @@ function renderParentMission() {
     : `<div class="pending-list">${pending.map(m => renderPendingCard(m)).join('')}</div>`;
   const badge = pending.length > 0 ? `<span class="pending-badge">${pending.length}</span>` : '';
 
+  // 교환권 확인 — 보상을 실제로 해주고 도장 찍기
+  const activeVouchers = (state.vouchers || []).filter(v => v.state === 'active' && kids.indexOf(v.kid) >= 0);
+  const voucherSection = activeVouchers.length ? `
+    <div class="section-head" style="margin-top:22px">
+      <span class="section-title">교환권 확인 🎟️</span>
+      <span class="pending-badge">${activeVouchers.length}</span>
+    </div>
+    <div class="ticket-list">
+      ${activeVouchers.map(v => `
+        <div class="ticket -${v.kid}">
+          <span class="ticket-emoji">${v.emoji}</span>
+          <div class="ticket-body">
+            <div class="ticket-name">${escapeHtml(v.text)}</div>
+            <div class="ticket-when"><span class="pending-kid-name -${v.kid}">${escapeHtml(nameOf(v.kid))}</span> · ${v.atMs ? dayLabelFromKey(dayKeyFromMs(v.atMs)) : ''}</div>
+          </div>
+          <button class="btn-use-voucher" data-action="use-voucher" data-id="${v.id}">사용 완료 ✅</button>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
   // 아이들 쿠키 현황
   const kidsRow = kids.map(k => `
     <div class="kid-status-card -${k}">
@@ -1680,6 +1762,7 @@ function renderParentMission() {
       ${badge}
     </div>
     ${pendingBlock}
+    ${voucherSection}
     <div class="sub-head">아이들 현황</div>
     <div class="kids-status-row">${kidsRow}</div>
     ${bonusBlock}
@@ -2195,6 +2278,9 @@ document.addEventListener('click', e => {
     case 'install-app':
       promptInstallApp();
       return;
+    case 'use-voucher':
+      useVoucher(Number(target.getAttribute('data-id')));
+      return;
   }
 });
 
@@ -2258,5 +2344,6 @@ document.addEventListener('visibilitychange', () => {
    ============================================================ */
 
 rememberCurrentPending(); // 부팅 시점의 '확인 대기'는 이미 본 것으로 간주
+rememberCurrentVouchers();
 render();
 initCloud();
