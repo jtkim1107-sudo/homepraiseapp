@@ -1,34 +1,6 @@
 {
   "rules": {
     ".read": false,
-    ".write": false,
-    "families": {
-      "$family": {
-        "state": {
-          ".read": true,
-          ".write": true,
-          ".validate": "newData.hasChildren(['by', 'updatedAt', 'data']) && newData.child('by').isString() && newData.child('by').val().length < 40 && newData.child('updatedAt').isNumber() && newData.child('data').isString() && newData.child('data').val().length < 300000"
-        },
-        "fields": {
-          ".read": true,
-          "$field": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['by', 'updatedAt', 'data']) && newData.child('by').isString() && newData.child('by').val().length < 40 && newData.child('updatedAt').isNumber() && newData.child('data').isString() && newData.child('data').val().length < 200000"
-          }
-        },
-        "closed": {
-          ".read": true,
-          ".write": true,
-          ".validate": "newData.isBoolean()"
-        }
-      }
-    },
-    "feedback": {
-      ".read": false,
-      "$id": {
-        ".write": "!data.exists()",
-        ".validate": "newData.hasChildren(['text', 'atMs']) && newData.child('text').isString() && newData.child('text').val().length < 2100 && newData.child('atMs').isNumber()"
-      }
-    }
+    ".write": false
   }
 }
